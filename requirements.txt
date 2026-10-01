@@ -1,0 +1,9 @@
+numpy
+matplotlib
+mne
+mne-bids
+mne-qt-browser
+openneuro-py
+PyQt5
+pytest
+ipykernel
