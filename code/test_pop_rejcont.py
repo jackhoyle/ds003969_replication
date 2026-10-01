@@ -6,7 +6,7 @@ import numpy as np
 import mne
 import pytest
 
-from preprocessing import _eegthresh_window, _merge_regions, rejcont
+from pop_rejcont import _eegthresh_window, _merge_regions, rejcont
 
 SFREQ = 256
 DURATION = 120  # s
