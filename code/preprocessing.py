@@ -1,17 +1,17 @@
 import numpy as np
 import mne
-from typing import Optional
+from typing import Optional, Union
 
 from pop_rejcont import rejcont
 
 def preprocess(
         raw: mne.io.edf.edf.RawEDF,
-        reference: Optional[str | list[str]] = None,
+        reference: Optional[Union[str, list[str]]] = None,
         subsample_freq: Optional[float] = None,
         high_pass_freq: Optional[float] = None,
         low_pass_freq: Optional[float] = None,
         pop_rejcont: bool = True,
-        bad_channel_variance_threshold: Optional[float] = True,
+        bad_channel_variance_threshold: Optional[float] = None,
         filter_order: int = 6
     ):
     #1: set reference
@@ -23,8 +23,9 @@ def preprocess(
         raw.resample(subsample_freq)
 
     #3: apply a high pass filter 
-    iir_params = dict(order=filter_order, ftype='butter')
-    raw.filter(l_freq=low_pass_freq, h_freq=high_pass_freq, h_trans_bandwidth=0.3, method='iir', iir_params=iir_params)
+    if high_pass_freq is not None or low_pass_freq is not None:
+        iir_params = dict(order=filter_order, ftype='butter')
+        raw.filter(l_freq=low_pass_freq, h_freq=high_pass_freq, h_trans_bandwidth=0.3, method='iir', iir_params=iir_params)
 
     #4: "pop_rejcont" automated rejection of artifact segments (port of EEGLAB's pop_rejcont, see code/preprocessing.py)
     # 1 s epochs, 0.5 s step (EEGLAB 'overlap'=0.5), 0-10 Hz > 17 dB and 35-128 Hz > 14 dB, 
