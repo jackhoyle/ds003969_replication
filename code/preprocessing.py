@@ -54,7 +54,7 @@ def _merge_regions(win, grouplen):
     return win
 
 
-def rejcont(raw, bands=((0, 10, 17), (35, 128, 14)), epochlength=1.0,
+def rejcont(raw: mne.io.Raw, bands=((0, 10, 17), (35, 128, 14)), epochlength=1.0,
             recurrence=0.5, contiguous=8, addlength=0.25, picks="eeg",
             taper=False, annotate=True, description="BAD_rejcont"):
     """Detect artifact segments like pop_rejcont.
