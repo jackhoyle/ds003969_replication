@@ -104,7 +104,7 @@ for subject in subjects:
         # input("Press the Enter key to continue: ")
 
         # now reconstruct
-        ica.exclude = muscle_bads + eog_bads
+        ica.exclude = list(set(muscle_bads + eog_bads))
         print(f'Excluding ICA components: {ica.exclude}')
 
         ica.apply(raw)
