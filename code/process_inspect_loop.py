@@ -23,8 +23,9 @@ from preprocessing import preprocess
 from psd_lof import find_bad_channels_psd_lof
 
 dataset = "ds003969"
-
 root = Path('/home/jackhoyle')
+
+auto_detect_bad_channels = True
 
 # Create a BIDS root directory in the MNE dataset folder
 bids_root = root / 'mne_data' / dataset
@@ -76,18 +77,21 @@ for subject in subjects:
         # for spectral dist suggestion restrict to less than 45Hz to avoid line noise
         # for this replication line noise is just excluded for analysis
         bad_spectral_dist = find_bad_channels_psd_lof(raw, fmax=45, threshold=2, verbose=False)
-        
-        psd = raw.compute_psd()
-        psd.plot(picks="eeg", average=False)
 
         print(f'Suggested bad channels from waveform dist: {bad_waveform_dist}')
         print(f'Suggested bad channels from spectral dist: {bad_spectral_dist}')
 
-        # manually mark bad channels here
-        raw.plot(duration=10, scalings=dict(eeg=40e-6), block=True)
+        if auto_detect_bad_channels:
+            raw.info['bads'] = list(set(raw.info['bads'] + bad_waveform_dist + bad_spectral_dist))
+        else:
+            # manual bad channel marking
+            psd = raw.compute_psd()
+            psd.plot(picks="eeg", average=False)
+
+            # manually mark bad channels here
+            raw.plot(duration=10, scalings=dict(eeg=40e-6), block=True)
 
         # Now ICA
-
         ica = ICA(n_components=20, method='infomax', max_iter="auto", rng=97)
         ica.fit(raw, decim = 5)
 
