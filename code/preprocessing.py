@@ -8,12 +8,20 @@ def preprocess(
         raw: mne.io.edf.edf.RawEDF,
         reference: Optional[Union[str, list[str]]] = None,
         subsample_freq: Optional[float] = None,
-        high_pass_freq: Optional[float] = None,
-        low_pass_freq: Optional[float] = None,
+        high_thresh: Optional[float] = None,
+        low_thresh: Optional[float] = None,
         pop_rejcont: bool = True,
         bad_channel_variance_threshold: Optional[float] = None,
         filter_order: int = 6
     ):
+    # 0: FP1 electrode is not used and recorded with Ext8 instead 
+    # Find the indices of the channels
+    idx_bad = raw.ch_names.index('Fp1')
+    idx_good = raw.ch_names.index('EXG8')
+
+    # Replace the data in place
+    raw._data[idx_bad] = raw._data[idx_good]
+
     #1: set reference
     if reference is not None:
         raw.set_eeg_reference(reference if isinstance(reference, list) else [reference]) # EXG6 is right mastoid
@@ -23,9 +31,9 @@ def preprocess(
         raw.resample(subsample_freq)
 
     #3: apply a high pass filter 
-    if high_pass_freq is not None or low_pass_freq is not None:
+    if high_thresh is not None or low_thresh is not None:
         iir_params = dict(order=filter_order, ftype='butter')
-        raw.filter(l_freq=low_pass_freq, h_freq=high_pass_freq, h_trans_bandwidth=0.3, method='iir', iir_params=iir_params)
+        raw.filter(l_freq=low_thresh, h_freq=high_thresh, l_trans_bandwidth=0.3, h_trans_bandwidth=0.3, method='iir', iir_params=iir_params)
 
     #4: "pop_rejcont" automated rejection of artifact segments (port of EEGLAB's pop_rejcont, see code/preprocessing.py)
     # 1 s epochs, 0.5 s step (EEGLAB 'overlap'=0.5), 0-10 Hz > 17 dB and 35-128 Hz > 14 dB, 
