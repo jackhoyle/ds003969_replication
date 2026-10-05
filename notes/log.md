@@ -196,4 +196,26 @@ From the paper:
 
 *"We then manually identified and removed bad electrodes (from 0 to 18 bad electrodes per subject, average of 5 electrodes removed per subject)."*
 
-So not too far off here, or at least closer than for the ICA
+So not too far off here, or at least closer than for the ICA. Still siding on harsher than the paper authors.
+
+### 5/10/23
+
+I'm now rerunning my pipeline but with relaxed ICA thresholds (suffix `_v2`). I'll replicate the previous analysis and see whether anything looks different in the gamma bands.
+
+Whilst that is running I've closed VSCODE to stop things exploding, it's memory overhead is massive and I'm only working with 8GB here. Can't wait to upgrade to 32...
+
+Let's plan whilst we wait for it to run:
+	1. Check results of latest run, see whether gamma results change, figure out if there are any obvious next steps to solve this mystery, bearing in mind the eventual write-up.
+	2. Do a little bit more analysis just plotting within group across task comparisons. Simple lines of differences in spectral power within each group across task settings with a simple se window. 
+	3. Next phase: other calculations: LRTCs and fEI. I find the criticality measures and papers really interesting so let's implement those functions manually to improve understanding of all the steps in the process. Then once it's implemented manually we can compare to an existing implementation for a double check.
+	4. Once we have some criticality measures implemented, let's look at these for each of the groups, comparing meditation to thinking. I'll need to form some hypotheses. 1: alpha and beta LRTCs increases under meditation for the meditator groups. Perhaps it does also for the controls, but I would expect a lesser impact. 2: alpha and beta LRTCs in meditators decrease as meditation continues as there is increased meditative depth. This can be done simply comparing the means of the first and second periods. 3. In resting/non-meditative state there is no significant difference in alpha/beta LRTCs. 
+
+Here's the updated headline plot with more relaxed muscle artifact detection:
+
+![alt text](image-6.png)
+
+This looks much more like the authors' headline plot. Changes here were increasing the muscle artifact detection threshold from 0.5 to 1 and changing the EOG artifact detection from 3 to 5.
+
+Uh oh! Looking at the logs there were actually zero muscle and eog artifacts removed! That seems like too much. Time to rerun with some settings in the middle. That's what I get for changing a threshold without fulling understanding it or testing its effects.
+
+I've now defaulted the EOG thresholding to what it was before as things didn't seem crazy there, and changed the muscle threshold to 0.75. Running now as v3.
