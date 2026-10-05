@@ -14,9 +14,21 @@ import mne
 
 dataset = "ds003969"
 tasks = ['think1', 'think2', 'med1breath', 'med2']
+run_suffix = '_v2'
+
 bids_root = Path('/home/jackhoyle') / 'mne_data' / dataset
-processed_dir = bids_root / 'processed'
-out_dir = bids_root / 'outputs' / 'psd_epoch_mean'
+
+
+def processed_dir_for(run_suffix):
+    return bids_root / f'processed{run_suffix}'
+
+
+def psd_dir_for(run_suffix):
+    return bids_root / f'outputs{run_suffix}' / 'psd_epoch_mean'
+
+
+processed_dir = processed_dir_for(run_suffix)
+out_dir = psd_dir_for(run_suffix)
 
 FMIN, FMAX = 2, 110
 EPOCH_LEN = 1.0
@@ -60,7 +72,8 @@ def compute_subject_task_psd(fif_path: Path):
     )
 
 
-def main():
+def main(run_suffix=run_suffix):
+    processed_dir, out_dir = processed_dir_for(run_suffix), psd_dir_for(run_suffix)
     out_dir.mkdir(parents=True, exist_ok=True)
     files = sorted(processed_dir.glob('sub-*_task-*_processed_raw.fif'))
     for fif in files:

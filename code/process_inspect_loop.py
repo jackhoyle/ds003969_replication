@@ -1,9 +1,6 @@
 from pathlib import Path
-import numpy as np
-import plotly.express as px
-import os
+import logging
 
-import openneuro
 import mne
 from mne.preprocessing import ICA
 from mne_bids import (
@@ -12,111 +9,120 @@ from mne_bids import (
     get_entity_vals,
 )
 
-import matplotlib.pyplot as plt
-plt.switch_backend('Qt5Agg')
-plt.ion()
-
-import logging
-logging.basicConfig(level=logging.INFO)
-
 from preprocessing import preprocess
 from psd_lof import find_bad_channels_psd_lof
 
 dataset = "ds003969"
 root = Path('/home/jackhoyle')
+run_suffix = '_v3'
 
 auto_detect_bad_channels = True
 
-# Create a BIDS root directory in the MNE dataset folder
 bids_root = root / 'mne_data' / dataset
-bids_root.mkdir(parents=True, exist_ok=True)
 
-# detect all subjects/tasks present in the dataset; combinations whose
-# recording is missing (e.g. not downloaded) are skipped in the loop below
-subjects = get_entity_vals(bids_root, 'subject')
-tasks = get_entity_vals(bids_root, 'task')
-logging.info(f"Found subjects {subjects} and tasks {tasks} in {dataset}")
 
-processed_root = bids_root / 'processed'
-processed_root.mkdir(parents=True, exist_ok=True)
+def process_all(run_suffix=run_suffix, auto_detect_bad_channels=auto_detect_bad_channels):
+    """Preprocess, mark bad channels, run ICA and save every subject/task to processed{run_suffix}/."""
+    if not auto_detect_bad_channels:
+        # interactive plots are only needed for manual bad channel marking
+        import matplotlib.pyplot as plt
+        plt.switch_backend('Qt5Agg')
+        plt.ion()
 
-already_done = set(f.name for f in processed_root.glob("sub-*_task-*_processed_raw.fif"))
+    bids_root.mkdir(parents=True, exist_ok=True)
 
-for subject in subjects:
-    for task in tasks:
-        if f"sub-{subject}_task-{task}_processed_raw.fif" in already_done:
-            logging.info(f"Skipping already processed subject {subject}, task {task}")
-            continue
-        if not BIDSPath(subject=subject, root=bids_root, task=task, datatype="eeg",
-                        suffix="eeg", extension=".bdf").fpath.exists():
-            logging.info(f"No data for subject {subject}, task {task}, skipping")
-            continue
-        # load data
-        logging.info(f"Loading data for subject {subject}, task {task}")
-        raw: mne.io.edf.edf.RawBDF = read_raw_bids(
-            BIDSPath(subject=subject, root=bids_root, task=task, datatype="eeg"),
-            verbose=False
-        )
-        raw.load_data()
-        raw.set_montage("colin27_1020", on_missing="warn")
-        assert type(raw) == mne.io.edf.edf.RawBDF
+    # detect all subjects/tasks present in the dataset; combinations whose
+    # recording is missing (e.g. not downloaded) are skipped in the loop below
+    subjects = get_entity_vals(bids_root, 'subject')
+    tasks = get_entity_vals(bids_root, 'task')
+    logging.info(f"Found subjects {subjects} and tasks {tasks} in {dataset}")
 
-        preprocess(
-            raw,
-            reference='EXG6',
-            subsample_freq=256,
-            high_thresh=None,
-            low_thresh=1,
-            pop_rejcont=True,
-            bad_channel_variance_threshold=None
-        )
+    processed_root = bids_root / f'processed{run_suffix}'
+    processed_root.mkdir(parents=True, exist_ok=True)
 
-        # now inspect and mark bad channels if needed
-        # automated bad channel suggestions
-        bad_waveform_dist = mne.preprocessing.find_bad_channels_lof(raw, picks='eeg', threshold=1.5)
-        # for spectral dist suggestion restrict to less than 45Hz to avoid line noise
-        # for this replication line noise is just excluded for analysis
-        bad_spectral_dist = find_bad_channels_psd_lof(raw, fmax=45, threshold=2, verbose=False)
+    already_done = set(f.name for f in processed_root.glob("sub-*_task-*_processed_raw.fif"))
 
-        print(f'Suggested bad channels from waveform dist: {bad_waveform_dist}')
-        print(f'Suggested bad channels from spectral dist: {bad_spectral_dist}')
+    for subject in subjects:
+        for task in tasks:
+            if f"sub-{subject}_task-{task}{run_suffix}_processed_raw.fif" in already_done:
+                logging.info(f"Skipping already processed subject {subject}, task {task}")
+                continue
+            if not BIDSPath(subject=subject, root=bids_root, task=task, datatype="eeg",
+                            suffix="eeg", extension=".bdf").fpath.exists():
+                logging.info(f"No data for subject {subject}, task {task}, skipping")
+                continue
+            # load data
+            logging.info(f"Loading data for subject {subject}, task {task}")
+            raw: mne.io.edf.edf.RawBDF = read_raw_bids(
+                BIDSPath(subject=subject, root=bids_root, task=task, datatype="eeg"),
+                verbose=False
+            )
+            raw.load_data()
+            raw.set_montage("colin27_1020", on_missing="warn")
+            assert type(raw) == mne.io.edf.edf.RawBDF
 
-        if auto_detect_bad_channels:
-            raw.info['bads'] = list(set(raw.info['bads'] + bad_waveform_dist + bad_spectral_dist))
-        else:
-            # manual bad channel marking
-            psd = raw.compute_psd()
-            psd.plot(picks="eeg", average=False)
+            preprocess(
+                raw,
+                reference='EXG6',
+                subsample_freq=256,
+                high_thresh=None,
+                low_thresh=1,
+                pop_rejcont=True,
+                bad_channel_variance_threshold=None
+            )
 
-            # manually mark bad channels here
-            raw.plot(duration=10, scalings=dict(eeg=40e-6), block=True)
+            # now inspect and mark bad channels if needed
+            # automated bad channel suggestions
+            bad_waveform_dist = mne.preprocessing.find_bad_channels_lof(raw, picks='eeg', threshold=1.5)
+            # for spectral dist suggestion restrict to less than 45Hz to avoid line noise
+            # for this replication line noise is just excluded for analysis
+            bad_spectral_dist = find_bad_channels_psd_lof(raw, fmax=45, threshold=2, verbose=False)
 
-        # Now ICA
-        ica = ICA(n_components=20, method='infomax', max_iter="auto", rng=97)
-        ica.fit(raw, decim = 5)
+            print(f'Suggested bad channels from waveform dist: {bad_waveform_dist}')
+            print(f'Suggested bad channels from spectral dist: {bad_spectral_dist}')
 
-        muscle_bads, muscle_bad_scores = ica.find_bads_muscle(raw)
-        # ica.plot_scores(muscle_bad_scores)
-        # ica.plot_properties(raw, picks=muscle_bads)
-        # input("Press the Enter key to continue: ")
+            if auto_detect_bad_channels:
+                raw.info['bads'] = list(set(raw.info['bads'] + bad_waveform_dist + bad_spectral_dist))
+            else:
+                # manual bad channel marking
+                psd = raw.compute_psd()
+                psd.plot(picks="eeg", average=False)
 
-        raw.set_channel_types({'EXG1': 'eog', 'EXG2': 'eog', 'EXG3': 'eog', 'EXG4': 'eog'})
+                # manually mark bad channels here
+                raw.plot(duration=10, scalings=dict(eeg=40e-6), block=True)
 
-        eog_bads, eog_bad_scores = ica.find_bads_eog(raw)
-        # ica.plot_scores(eog_bad_scores)
-        # ica.plot_properties(raw, picks=eog_bads)
-        # input("Press the Enter key to continue: ")
+            # Now ICA
+            ica = ICA(n_components=20, method='infomax', max_iter="auto", rng=97)
+            ica.fit(raw, decim = 5)
 
-        # now reconstruct
-        ica.exclude = list(set(muscle_bads + eog_bads))
-        print(f'Excluding ICA components: {ica.exclude}')
+            muscle_bads, muscle_bad_scores = ica.find_bads_muscle(raw, threshold=0.75)
+            # if len(muscle_bads)>0:
+            #     ica.plot_scores(muscle_bad_scores)
+            #     ica.plot_properties(raw, picks=muscle_bads)
+            #     input("Press the Enter key to continue: ")
 
-        ica.apply(raw)
+            raw.set_channel_types({'EXG1': 'eog', 'EXG2': 'eog', 'EXG3': 'eog', 'EXG4': 'eog'})
 
-        # record excluded ICA components in the raw object (persisted in the .fif)
-        raw.info['description'] = (
-            f"ICA excluded components: muscle={muscle_bads}, eog={eog_bads}"
-        )
+            eog_bads, eog_bad_scores = ica.find_bads_eog(raw, threshold=3.0)
+            # ica.plot_scores(eog_bad_scores)
+            # ica.plot_properties(raw, picks=eog_bads)
+            # input("Press the Enter key to continue: ")
 
-        # save processed data
-        raw.save(processed_root / f"sub-{subject}_task-{task}_processed_raw.fif", overwrite=True)
+            # now reconstruct
+            ica.exclude = list(set(muscle_bads + eog_bads))
+            print(f'Excluding ICA components: {ica.exclude}')
+
+            ica.apply(raw)
+
+            # record excluded ICA components in the raw object (persisted in the .fif)
+            raw.info['description'] = (
+                f"ICA excluded components: muscle={muscle_bads}, eog={eog_bads}"
+            )
+
+            # save processed data
+            raw.save(processed_root / f"sub-{subject}_task-{task}{run_suffix}_processed_raw.fif", overwrite=True)
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    process_all()
