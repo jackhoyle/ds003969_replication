@@ -4,7 +4,6 @@ Aim: build a simple EEG processing pipeline then replicate some basic results fr
 
 Data is at: https://openneuro.org/datasets/ds003969/versions/1.0.0
 
-
 ##  Steps
 
 1. Install relevant packages 
@@ -120,3 +119,81 @@ For now I have the bad channel suggestion automated using the built in `mne` fun
 Now I need to look into ICA. The authors are not overly specific so it sound like they use a vanilla package version. I shall do similarly, using the python version but making the settings close where possible.
 
 It seems there is quite an art to detecting ICA components. https://labeling.ucsd.edu/tutorial/labels is a very good resource for this. I'm not quite confident yet to go through each manually and call out which they are. Luckily MNE has automatic detection functions in place for muscle and EOG artefacts which seem to behave sensibly on some test cases. I'm going to just use these.
+
+### 3/10/26
+
+Yesterday I implemented the ICA stuff. As in the work we're replicating, we'll try to exclude muscle and eye artifacts from the data. There are automated functions for this in MNE, and I've used those. Looking at the outputs of those in a notebook and comparing to the resource above all the suggestions seem sensible.
+
+The full data processing loop is now ready to go. I'm going to run it with the manual bad channel labelling for now, see how much my selections agree with the automated suggestions. If they line up nicely then I'll just run the whole thing automatically, perhaps changing the thresholding slightly on the automated functions to line them up better.
+
+OK I'm going to run this automated and then compare results/see how many channels are marked bad, as decisions seem good so far. 
+
+TODO: compare decisions with my simple criteria here to RANSAC
+
+Have looked at using autoreject and it does seem to be making sensible decisions, but it deviates too much from the original paper so I will make a note to use it in the future but not for this initial replication attempt.
+
+Everything has run now and I'm processing the data to take a quick look at how close we get to replicating the headline result from previously.
+
+### 4/10/26
+
+Below is the first pass at replicating the power spectra by group. We see the vipassana group having higher alpha band power, and this is common across conditions as in the paper, looking like a fairly robust result. 
+
+However, the gamma band trait difference observed by the authors between the control group and the rest is not observed at all. This is famously difficult this region due to muscle and eye artifacts. Given how the authors identify the ICA components for these things very manually, it's quite hard to tell why my results differ so dramatically.
+
+dsa
+
+dsa
+
+![alt text](image-1.png)
+
+![alt text](image-2.png)
+
+Next steps are to investigate this alpha discrepancy. The effects is so marked in the chart above but is not present at all in my data.
+
+It is likely due to a difference in processing pipelines, and most likely how muscle ICA components are removed. I'll revisit that and see how decisions were made for each group.
+
+First I've looked at individual traces all on the same plot grouped by type. There are no clear outliers here
+
+![alt text](image-3.png)
+
+This is at least guidance that whatever the difference is, it is likely systematic rather than outlier handling.
+
+Another questions I need to get on top of is translatin my graphs to the same weird y scale they use: I want to know where the power differences are more severe in the spectrum.
+
+At least my values agree with normal values across studies, so I'm not wrong I just need to get the conversion right.
+
+There values are not plausible so there is a factor that is off here. It looks like it's from squaring the FFT but not normalising. Normalisation factor is maybe 48dB, which aligned things roughly with my results (back of the envelope).
+
+I also made a plot to visualise how many ICA components were removed by group/task/ICA type and things look pretty consistent across mine: 
+
+![alt text](image-4.png)
+
+I've been removing a lot more artifacts than the original paper:
+
+*"For each subject, we visually
+identified and subtracted one to five well-characterized ICA components from the data."*
+
+I'm way above 10 in many cases!
+
+Which is actually a bit insane given that I only estimated 20 components in each case. Maybe I'm being really aggressive here and removing way too much high frequency stuff. 
+
+
+It would be interesting to rerun the analysis with the muscle artifact stuff toned down or removed.
+
+Hypothesis: author effect is real, my aggressive ICA component removal is flattening power at higher frequencies, removing any evidence of the effect.
+
+Tests:
+
+* Rerun without ICA removal
+* Rerun with better scoped/limited ICA removal, perhaps adjusting thresholds so that we get 1-5 components removed typically, and cap at removing 5.
+
+Here's  the same but for the number of bad channels removed by task and group.
+![alt text](image-5.png)
+
+So on average around 7-8 channels are removed, and this varies a bit by group.
+
+From the paper:
+
+*"We then manually identified and removed bad electrodes (from 0 to 18 bad electrodes per subject, average of 5 electrodes removed per subject)."*
+
+So not too far off here, or at least closer than for the ICA
