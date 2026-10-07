@@ -84,7 +84,7 @@ def process_all(run_suffix=run_suffix, auto_detect_bad_channels=auto_detect_bad_
                 raw.info['bads'] = list(set(raw.info['bads'] + bad_waveform_dist + bad_spectral_dist))
             else:
                 # manual bad channel marking
-                psd = raw.compute_psd()
+                psd = raw.compute_psd(verbose=False)
                 psd.plot(picks="eeg", average=False)
 
                 # manually mark bad channels here
@@ -106,7 +106,7 @@ def process_all(run_suffix=run_suffix, auto_detect_bad_channels=auto_detect_bad_
             # at most 4 here
             eog_bads = eog_bads[:min(4, len(eog_bads))]
 
-            muscle_bads, muscle_bad_scores = ica.find_bads_muscle(raw, threshold=0.75)
+            muscle_bads, muscle_bad_scores = ica.find_bads_muscle(raw, threshold=0.75, verbose=False)
             # if len(muscle_bads)>0:
             #     ica.plot_scores(muscle_bad_scores)
             #     ica.plot_properties(raw, picks=muscle_bads)

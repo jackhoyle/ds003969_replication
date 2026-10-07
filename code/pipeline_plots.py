@@ -24,8 +24,10 @@ def _fif_files(processed_root: Path, run_suffix: str):
     """Yield (subject, task, path) for each processed .fif of a run."""
     pattern = re.compile(r'sub-(.+)_task-(.+)' + re.escape(run_suffix) + '_processed_raw')
     for fif in sorted(processed_root.glob(f'sub-*_task-*{run_suffix}_processed_raw.fif')):
-        subject, task = pattern.match(fif.stem).groups()
-        yield subject, task, fif
+        match = pattern.match(fif.stem)
+        if match is not None:
+            subject, task = match.groups()
+            yield subject, task, fif
 
 
 def load_bad_channels(processed_root: Path, run_suffix: str) -> pd.DataFrame:

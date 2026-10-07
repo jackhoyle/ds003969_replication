@@ -7,3 +7,4 @@ openneuro-py
 PyQt5
 pytest
 ipykernel
+crosci
