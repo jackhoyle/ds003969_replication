@@ -219,3 +219,40 @@ This looks much more like the authors' headline plot. Changes here were increasi
 Uh oh! Looking at the logs there were actually zero muscle and eog artifacts removed! That seems like too much. Time to rerun with some settings in the middle. That's what I get for changing a threshold without fulling understanding it or testing its effects.
 
 I've now defaulted the EOG thresholding to what it was before as things didn't seem crazy there, and changed the muscle threshold to 0.75. Running now as v3.
+
+### 6/10/26
+
+The v3 run has more sensible numbers of ICA muscle components removed:
+
+![alt text](ica-components-excluded-by-group.png)
+
+However, this is still not ideal. Whilst medians are sensible around 2, we have lots of outliers and lots of cases where 0 outliers are removed. The headline gamma result is also missing under this specification.
+
+Idea: new specification where we bound the number of components removed. 
+
+Weirdly I've observed only even numbers of EOG ICA components being removed, what's going on? This is an artifact of weird passing of e.g.  `np.int64(2)`, the numbers chosen are sensible ints. No concerns there.
+
+V4 is running now with the same thresholds but muscle ICA components limited to be at least 1 and EOG components limited to 4 or less. Total components is bounded at 5 with EOG taking precedence. This should be somewhat close to the authors. If  this doesn't move us towards observing the gamma difference we saw with no ICA components removed then I would suspect the EOG components more likely to be causing the differences. The constraints here should only really be binding for muscle components.
+
+Here's the latest from v4:
+
+![alt text](image-7.png)
+
+So this looks a bit closer to the authors. We still get the significant alpha differences and lower gamma for control but it's not really significant here. The only major change here is restricting how many muscle artifacts get removed, capping them at 5 effectively. The box plots for components removed look as intended/expected:
+
+![alt text](image-8.png)
+
+Overall we're closer but this doesn't feel completely satisfying. I could be chasing my tail on this indefinitely given there's no way to match the authors' original choices. The next step would be to upskill at the manual inspection, read some guidance in various places, then do this in full with the bad channels too. This would however be fairly time intensive and for now isn't the best learning opportunity, so I'll put a pin and maybe come back to it only if I have other analysis to do on this data and feel that trusting the data more would help me trust some other more interesting conclusions.
+
+So next:
+	2. Do a little bit more analysis just plotting within group across task comparisons. Simple lines of differences in spectral power within each group across task settings with a simple se window. (Claude can do this)
+	3. Next phase: other calculations: LRTCs and fEI. I find the criticality measures and papers really interesting so let's implement those functions manually to improve understanding of all the steps in the process. Then once it's implemented manually we can compare to an existing implementation for a double check.	
+	4. Once we have some criticality measures implemented, let's look at these for each of the groups, comparing meditation to thinking. I'll need to form some hypotheses. 1: alpha and beta LRTCs increases under meditation for the meditator groups. Perhaps it does also for the controls, but I would expect a lesser impact. 2: alpha and beta LRTCs in meditators decrease as meditation continues as there is increased meditative depth. This can be done simply comparing the means of the first and second periods. 3. In resting/non-meditative state there is no significant difference in alpha/beta LRTCs. 
+
+OK I've generated plots now looking at the differences within groups across tasks, and across groups within tasks. When I plot the z-scores for the differences nothing that crazy pops out. I reran this for v2/v3 too. It was a good exercises in getting Claude to do all of my charting but no major results. I also don't want to look into it in too much detail whilst I don't trust the data processing pipeline fully. 
+
+Next step is continuing manual implementation of criticality measures. I actually don't need to vectorize this properly, just get it matching `crosci` for a single channel as it is a test of my understanding of the process, not my ability to write it in parallel form...
+
+### 7/10/26
+
+I've implemented simple versions of DFA and fEI and checked against `crosci`, values differ slightly as windowing is not identical, I think due to the windowing being a little different. I have however understood what's going on under the hood better, so mission achieved there.
