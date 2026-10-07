@@ -14,7 +14,7 @@ from psd_lof import find_bad_channels_psd_lof
 
 dataset = "ds003969"
 root = Path('/home/jackhoyle')
-run_suffix = '_v3'
+run_suffix = '_v4'
 
 auto_detect_bad_channels = True
 
@@ -95,19 +95,31 @@ def process_all(run_suffix=run_suffix, auto_detect_bad_channels=auto_detect_bad_
             ica = ICA(n_components=20, method='infomax', max_iter="auto", rng=97)
             ica.fit(raw, decim = 5)
 
+            raw.set_channel_types({'EXG1': 'eog', 'EXG2': 'eog', 'EXG3': 'eog', 'EXG4': 'eog'})
+            eog_bads, eog_bad_scores = ica.find_bads_eog(raw, threshold=3.0)
+            eog_bads = [int(i) for i in eog_bads]
+            # if len(eog_bads) > 0:
+            #     ica.plot_scores(eog_bad_scores)
+            #     ica.plot_properties(raw, picks=eog_bads)
+            #     print(eog_bads)
+            #     input("Press the Enter key to continue: ")
+
+            # at most 4 here
+            eog_bads = eog_bads[:min(4, len(eog_bads))]
+
             muscle_bads, muscle_bad_scores = ica.find_bads_muscle(raw, threshold=0.75)
             # if len(muscle_bads)>0:
             #     ica.plot_scores(muscle_bad_scores)
             #     ica.plot_properties(raw, picks=muscle_bads)
-            #     input("Press the Enter key to continue: ")
 
-            raw.set_channel_types({'EXG1': 'eog', 'EXG2': 'eog', 'EXG3': 'eog', 'EXG4': 'eog'})
-
-            eog_bads, eog_bad_scores = ica.find_bads_eog(raw, threshold=3.0)
-            # ica.plot_scores(eog_bad_scores)
-            # ica.plot_properties(raw, picks=eog_bads)
-            # input("Press the Enter key to continue: ")
-
+            # always remove at least 1 ICA component, and at most 5 in total
+            max_muscle = 5 - len(eog_bads)
+            if len(muscle_bads) == 0:
+                # always remove one
+                muscle_bads = [max(range(len(muscle_bad_scores)), key=muscle_bad_scores.__getitem__)]
+            elif len(muscle_bads) > max_muscle:
+                # take the max_muscle components with the highest scores
+                muscle_bads = sorted(muscle_bads, key=lambda x: muscle_bad_scores[x], reverse=True)[:max_muscle]
             # now reconstruct
             ica.exclude = list(set(muscle_bads + eog_bads))
             print(f'Excluding ICA components: {ica.exclude}')

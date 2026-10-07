@@ -22,7 +22,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suffix', default='_v3',
                         help="run suffix for the processed/outputs folders, e.g. '_v3' (default: %(default)s)")
-    parser.add_argument('--channels', nargs='+', default=['Oz'],
+    parser.add_argument('--channels', nargs='+', default=['Oz', 'Pz', 'Fz', 'Cz'],
                         help='channels to plot group mean ± SE spectra for (default: %(default)s)')
     parser.add_argument('--skip-processing', action='store_true',
                         help='skip preprocessing/ICA (step 1)')

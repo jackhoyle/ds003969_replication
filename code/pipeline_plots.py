@@ -3,6 +3,7 @@
   - bad channels per group/task          (exploration/261004_bad_channels.ipynb)
   - ICA components excluded per group/task (exploration/261004_ica_components.ipynb)
   - group mean ± SE power spectra          (exploration/261005_analysis.ipynb)
+  - difference spectra: each group minus control, per task; and within-group task contrasts
 
 Only subject/task combinations with a saved PSD (i.e. those used in the analysis) are included.
 """
@@ -113,54 +114,123 @@ def plot_ica_components(df, colours):
     return box, bar
 
 
+# within-subject task contrasts: name -> (tasks averaged on the + side, tasks averaged on the - side)
+task_contrasts = {
+    'med1breath-think1': (['med1breath'], ['think1']),
+    'med2-think2': (['med2'], ['think2']),
+    'med-think': (['med1breath', 'med2'], ['think1', 'think2']),
+}
+
+
+def _mean_se(arr):
+    """Mean and SE over subjects (axis 0), ignoring NaNs (bad channels)."""
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', RuntimeWarning)  # all-NaN slices (channel bad for every subject)
+        n = np.sum(~np.isnan(arr), axis=0)
+        return np.nanmean(arr, axis=0), np.nanstd(arr, axis=0, ddof=1) / np.sqrt(n)
+
+
 def group_spectra(by_task, subjects, group_of, scale=1e12):  # V²/Hz -> µV²/Hz
     """Mean and SE spectrum per (task, group), averaging over subjects and ignoring NaNs (bad channels).
     Returns {(task, group): (mean, se)}, each (n_channels, n_freqs) in µV²/Hz."""
     out = {}
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore', RuntimeWarning)  # all-NaN slices (channel bad for every subject)
-        for task, arr in by_task.items():                 # arr: (n_subjects, n_channels, n_freqs)
-            task_groups = np.array([group_of[s] for s in subjects[task]])
-            for group in np.unique(task_groups):
-                group_arr = scale * arr[task_groups == group]
-                n = np.sum(~np.isnan(group_arr), axis=0)
-                mean = np.nanmean(group_arr, axis=0)
-                se = np.nanstd(group_arr, axis=0, ddof=1) / np.sqrt(n)
-                out[(task, group)] = (mean, se)
+    for task, arr in by_task.items():                 # arr: (n_subjects, n_channels, n_freqs)
+        task_groups = np.array([group_of[s] for s in subjects[task]])
+        for group in np.unique(task_groups):
+            out[(task, group)] = _mean_se(scale * arr[task_groups == group])
     return out
 
 
-def plot_group_spectrum(spectra, freqs, ch_names, ch, task, colours, height=500):
-    """Group mean spectrum for one channel and task, with a shaded mean ± SE band."""
+def subject_task_means(by_task, subjects, name='all_tasks'):
+    """Each subject's spectrum averaged over the tasks they have (a channel bad in some tasks is averaged over
+    the others), in the same {condition: array} / {condition: [subjects]} form as load_all."""
+    rows = {}
+    for task, arr in by_task.items():
+        for s, spectrum in zip(subjects[task], arr):
+            rows.setdefault(s, []).append(spectrum)
+    subs = sorted(rows)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', RuntimeWarning)  # channel bad in every task for a subject
+        arr = np.stack([np.nanmean(rows[s], axis=0) for s in subs])
+    return {name: arr}, {name: subs}
+
+
+def group_differences(spectra, control='ctr'):
+    """Each group's mean spectrum minus the control group's, per task.
+    The groups are independent, so SE of the difference = sqrt(se_group² + se_control²).
+    Returns {(task, group): (mean_diff, se)} for the non-control groups."""
+    out = {}
+    for (task, group), (mean, se) in spectra.items():
+        if group == control or (task, control) not in spectra:
+            continue
+        control_mean, control_se = spectra[(task, control)]
+        out[(task, group)] = (mean - control_mean, np.sqrt(se**2 + control_se**2))
+    return out
+
+
+def task_differences(by_task, subjects, group_of, scale=1e12):  # V²/Hz -> µV²/Hz
+    """Within-subject task contrasts (see task_contrasts), then mean and SE of the paired difference per group.
+    Only subjects with every task in a contrast are included; a channel bad in any of those tasks is NaN.
+    Returns {(contrast, group): (mean_diff, se)}, each (n_channels, n_freqs) in µV²/Hz."""
+    index = {t: {s: i for i, s in enumerate(subs)} for t, subs in subjects.items()}
+    out = {}
+    for name, (plus, minus) in task_contrasts.items():
+        if not all(t in by_task for t in plus + minus):
+            continue
+        subs = sorted(set.intersection(*(set(index[t]) for t in plus + minus)))
+
+        def task_mean(ts):  # (n_subjects, n_channels, n_freqs), averaged over the tasks ts
+            return np.mean([by_task[t][[index[t][s] for s in subs]] for t in ts], axis=0)
+
+        diff = scale * (task_mean(plus) - task_mean(minus))
+        groups = np.array([group_of[s] for s in subs])
+        for group in np.unique(groups):
+            out[(name, group)] = _mean_se(diff[groups == group])
+    return out
+
+
+def plot_group_spectrum(spectra, freqs, ch_names, ch, condition, colours, title=None, zscore=False,
+                        height=500):
+    """Group mean spectrum for one channel and condition (a task, or a contrast), with a shaded mean ± SE band.
+    zscore=True is for difference spectra: plots z = mean / SE per frequency (no band, the SE is already in z),
+    on a linear axis with reference lines at 0 and ±1.96 (uncorrected two-sided p = 0.05)."""
     ch_ix = list(ch_names).index(ch)
     fig = go.Figure()
     for group in sorted(colours):
-        if (task, group) not in spectra:
+        if (condition, group) not in spectra:
             continue
-        mean, se = (a[ch_ix] for a in spectra[(task, group)])
-        lower = np.maximum(mean - se, mean * 1e-3)  # keep positive for the log axis
-        upper = mean + se
-        r, g, b = hex_to_rgb(colours[group])
-        fig.add_trace(go.Scatter(
-            x=np.concatenate([freqs, freqs[::-1]]),
-            y=np.concatenate([upper, lower[::-1]]),
-            fill='toself', fillcolor=f'rgba({r},{g},{b},0.3)', line=dict(width=0),
-            hoverinfo='skip', showlegend=False, legendgroup=group,
-        ))
+        mean, se = (a[ch_ix] for a in spectra[(condition, group)])
+        if zscore:
+            mean = mean / se
+        else:
+            lower = np.maximum(mean - se, mean * 1e-3)  # keep positive for the log axis
+            upper = mean + se
+            r, g, b = hex_to_rgb(colours[group])
+            fig.add_trace(go.Scatter(
+                x=np.concatenate([freqs, freqs[::-1]]),
+                y=np.concatenate([upper, lower[::-1]]),
+                fill='toself', fillcolor=f'rgba({r},{g},{b},0.3)', line=dict(width=0),
+                hoverinfo='skip', showlegend=False, legendgroup=group,
+            ))
         fig.add_trace(go.Scatter(
             x=freqs, y=mean, mode='lines', name=group, legendgroup=group,
             line=dict(color=colours[group], width=2),
             hovertemplate=f'{group}<br>%{{x}} Hz: %{{y:.3g}}<extra></extra>',
         ))
+    if zscore:
+        fig.add_hline(y=0, line=dict(color='grey', width=1))
+        for y in (-1.96, 1.96):
+            fig.add_hline(y=y, line=dict(color='grey', width=1, dash='dash'))
     fig.update_layout(
-        title=f'{ch} - {task} (group mean ± SE)', height=height,
-        xaxis_title='Frequency (Hz)', yaxis_title='PSD (µV²/Hz)', yaxis_type='log',
+        title=title or f'{ch} - {condition} (group mean ± SE)', height=height,
+        xaxis_title='Frequency (Hz)', yaxis_title='z (difference / SE)' if zscore else 'PSD (µV²/Hz)',
+        yaxis_type='linear' if zscore else 'log',
         legend_title_text='group', hovermode='x unified',
     )
     return fig
 
 
-def make_all_plots(bids_root: Path, run_suffix: str, psd_dir: Path, plots_dir: Path, channels):
+def make_all_plots(bids_root: Path, run_suffix: str, psd_dir: Path, plots_dir: Path, channels, control='ctr'):
     """Write all summary plots (HTML) and their underlying tables (CSV) to plots_dir."""
     processed_root = bids_root / f'processed{run_suffix}'
     plots_dir.mkdir(parents=True, exist_ok=True)
@@ -199,3 +269,27 @@ def make_all_plots(bids_root: Path, run_suffix: str, psd_dir: Path, plots_dir: P
         for task in by_task:
             plot_group_spectrum(spectra, freqs, ch_names, ch, task, colours) \
                 .write_html(spectra_dir / f'{ch}_{task}.html', include_plotlyjs='cdn')
+
+    # each non-control group minus control, per task and for each subject's mean over tasks (trait difference)
+    vs_control = group_differences(spectra, control)
+    vs_control |= group_differences(group_spectra(*subject_task_means(by_task, subjects), group_of), control)
+    vs_control_dir = plots_dir / f'spectra_diff_vs_{control}'
+    vs_control_dir.mkdir(exist_ok=True)
+    for ch in channels:
+        for task in [*by_task, 'all_tasks']:
+            label = 'all tasks (subject mean)' if task == 'all_tasks' else task
+            plot_group_spectrum(vs_control, freqs, ch_names, ch, task, colours, zscore=True,
+                                title=f'{ch} - {label}: group − {control} (z of mean difference)') \
+                .write_html(vs_control_dir / f'{ch}_{task}.html', include_plotlyjs='cdn')
+
+    # within-group task contrasts (paired, per subject)
+    contrasts = task_differences(by_task, subjects, group_of)
+    contrasts_dir = plots_dir / 'spectra_diff_tasks'
+    contrasts_dir.mkdir(exist_ok=True)
+    for ch in channels:
+        for name, (plus, minus) in task_contrasts.items():
+            title = f'{ch} - avg({", ".join(plus)}) − avg({", ".join(minus)})' if len(plus) > 1 \
+                else f'{ch} - {plus[0]} − {minus[0]}'
+            plot_group_spectrum(contrasts, freqs, ch_names, ch, name, colours, zscore=True,
+                                title=f'{title} within group (z of mean paired difference)') \
+                .write_html(contrasts_dir / f'{ch}_{name}.html', include_plotlyjs='cdn')
