@@ -2,10 +2,9 @@
 
 Run from the repo root:  pytest code
 """
-import numpy as np
 import mne
+import numpy as np
 import pytest
-
 from psd_lof import find_bad_channels_psd_lof
 
 SFREQ = 256

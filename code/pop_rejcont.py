@@ -11,8 +11,8 @@ Follows pop_rejcont.m line by line, including its quirks:
   * 'contiguous' is not a minimum run length: it only sets the merge distance
     grouplen = contiguous / 2 * epochlength seconds (see _merge_regions).
 """
-import numpy as np
 import mne
+import numpy as np
 
 
 def _eegthresh_window(freqs, fmin, fmax):
@@ -39,13 +39,7 @@ def _merge_regions(win, grouplen):
     win = [list(w) for w in win]
     for i in range(len(win) - 1, -1, -1):
         n = len(win)
-        if win[i][1] - win[i][0] > grouplen:
-            del win[i]
-        elif i == 0 and n > 1 and win[1][0] - win[0][1] > grouplen:
-            del win[i]
-        elif i == n - 1 and n > 1 and win[i][0] - win[i - 1][1] > grouplen:
-            del win[i]
-        elif (0 < i < n - 1 and win[i + 1][0] - win[i][1] > grouplen
+        if win[i][1] - win[i][0] > grouplen or i == 0 and n > 1 and win[1][0] - win[0][1] > grouplen or i == n - 1 and n > 1 and win[i][0] - win[i - 1][1] > grouplen or (0 < i < n - 1 and win[i + 1][0] - win[i][1] > grouplen
               and win[i][0] - win[i - 1][1] > grouplen):
             del win[i]
         elif i < n - 1 and win[i + 1][0] - win[i][1] <= grouplen:

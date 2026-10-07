@@ -1,14 +1,13 @@
-from pathlib import Path
 import logging
+from pathlib import Path
 
 import mne
 from mne.preprocessing import ICA
 from mne_bids import (
     BIDSPath,
-    read_raw_bids,
     get_entity_vals,
+    read_raw_bids,
 )
-
 from preprocessing import preprocess
 from psd_lof import find_bad_channels_psd_lof
 

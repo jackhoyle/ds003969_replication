@@ -7,18 +7,17 @@
 
 Only subject/task combinations with a saved PSD (i.e. those used in the analysis) are included.
 """
-from pathlib import Path
 import re
 import warnings
+from pathlib import Path
 
+import mne
 import numpy as np
 import pandas as pd
-import mne
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.colors import hex_to_rgb
-
 from compute_psd_epochs import load_all, tasks
+from plotly.colors import hex_to_rgb
 
 
 def _fif_files(processed_root: Path, run_suffix: str):

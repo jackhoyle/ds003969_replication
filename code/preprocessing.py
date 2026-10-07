@@ -1,17 +1,17 @@
-import numpy as np
-import mne
-from typing import Optional, Union
 
+import mne
+import numpy as np
 from pop_rejcont import rejcont
+
 
 def preprocess(
         raw: mne.io.edf.edf.RawEDF,
-        reference: Optional[Union[str, list[str]]] = None,
-        subsample_freq: Optional[float] = None,
-        high_thresh: Optional[float] = None,
-        low_thresh: Optional[float] = None,
+        reference: str | list[str] | None = None,
+        subsample_freq: float | None = None,
+        high_thresh: float | None = None,
+        low_thresh: float | None = None,
         pop_rejcont: bool = True,
-        bad_channel_variance_threshold: Optional[float] = None,
+        bad_channel_variance_threshold: float | None = None,
         filter_order: int = 6
     ):
     # 0: FP1 electrode is not used and recorded with Ext8 instead 

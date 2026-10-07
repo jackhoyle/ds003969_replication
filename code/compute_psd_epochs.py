@@ -9,8 +9,9 @@ For each processed fif file:
      results can be aggregated across subjects/tasks with np.nanmean.
 """
 from pathlib import Path
-import numpy as np
+
 import mne
+import numpy as np
 
 dataset = "ds003969"
 tasks = ['think1', 'think2', 'med1breath', 'med2']

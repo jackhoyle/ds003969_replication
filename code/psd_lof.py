@@ -6,8 +6,8 @@ point described by its log-PSD (dB), so a channel is an outlier if its spectral
 *shape or level* differs from its neighbours' (line noise, excess EMG, flat
 channels, drifting channels, ...).
 """
-import numpy as np
 import mne
+import numpy as np
 
 
 def _pool_log_bands(logpsd, freqs, fmin, fmax, n_bands):

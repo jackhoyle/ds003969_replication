@@ -2,10 +2,9 @@
 
 Run from the repo root:  pytest code
 """
-import numpy as np
 import mne
+import numpy as np
 import pytest
-
 from pop_rejcont import _eegthresh_window, _merge_regions, rejcont
 
 SFREQ = 256
@@ -27,7 +26,7 @@ def make_raw(bursts=(), channels=slice(None), seed=0, meas_date=False):
     raw = mne.io.RawArray(data, mne.create_info(N_CH, SFREQ, "eeg"))
     if meas_date:
         import datetime
-        raw.set_meas_date(datetime.datetime(2020, 1, 1, tzinfo=datetime.timezone.utc))
+        raw.set_meas_date(datetime.datetime(2020, 1, 1, tzinfo=datetime.UTC))
     return raw
 
 
