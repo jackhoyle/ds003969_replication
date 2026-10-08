@@ -8,11 +8,14 @@
 
 Already processed files / existing PSDs / existing DFA+fEI results are skipped, so re-running is cheap.
 Steps 1-3 each process subject/task files in parallel over --n-jobs processes.
+With --manual, step 1 runs serially and opens interactive plots to mark bad channels
+and choose ICA components for each subject/task.
 
 Usage (from the code/ directory):
     python run_pipeline.py --suffix _v3
     python run_pipeline.py --suffix _v2 --plots-only --channels Oz Pz Fz
     python run_pipeline.py --suffix _v4 --skip-processing --n-jobs 8
+    python run_pipeline.py --suffix _v5 --manual
 """
 import argparse
 import logging
@@ -30,6 +33,9 @@ def parse_args():
                         help='channels to plot group mean ± SE spectra for (default: %(default)s)')
     parser.add_argument('--skip-processing', action='store_true',
                         help='skip preprocessing/ICA (step 1)')
+    parser.add_argument('--manual', action='store_true',
+                        help='manually mark bad channels and choose ICA components in step 1 '
+                             '(interactive, runs serially)')
     parser.add_argument('--skip-criticality', action='store_true',
                         help='skip DFA/fEI (step 3), which is the slowest step after ICA')
     parser.add_argument('--plots-only', action='store_true',
@@ -47,7 +53,7 @@ def main():
         # imported here so --plots-only doesn't need the processing dependencies
         from process_inspect_loop import process_all
         logging.info(f'Step 1/4: processing raw data -> processed{args.suffix}')
-        process_all(run_suffix=args.suffix, auto_detect_bad_channels=True, n_jobs=args.n_jobs)
+        process_all(run_suffix=args.suffix, auto_detect_bad_channels=not args.manual, n_jobs=args.n_jobs)
 
     if not args.plots_only:
         logging.info(f'Step 2/4: computing epoch PSDs -> {psd_dir_for(args.suffix)}')

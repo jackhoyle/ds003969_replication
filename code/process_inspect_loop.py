@@ -138,20 +138,63 @@ def process_one(subject, task, processed_root: Path, run_suffix, auto_detect_bad
         # take the max_muscle components with the highest scores
         muscle_bads = sorted(muscle_bads, key=lambda x: muscle_bad_scores[x], reverse=True)[:max_muscle]
     # now reconstruct
-    ica.exclude = list(set(muscle_bads + eog_bads))
+    ica.exclude = sorted(set(muscle_bads + eog_bads))
+    print(f'sub-{subject} task-{task}: suggested ICA components: muscle={muscle_bads}, eog={eog_bads}')
+
+    if not auto_detect_bad_channels:
+        select_ica_components(ica, raw, eog_bads, eog_bad_scores, muscle_bads, muscle_bad_scores)
+
     print(f'sub-{subject} task-{task}: excluding ICA components: {ica.exclude}')
 
     ica.apply(raw)
 
     # record excluded ICA components in the raw object (persisted in the .fif)
     raw.info['description'] = (
-        f"ICA excluded components: muscle={muscle_bads}, eog={eog_bads}"
+        f"ICA excluded components: {ica.exclude} "
+        f"(suggested muscle={muscle_bads}, eog={eog_bads})"
     )
 
     # save processed data
     raw.save(processed_root / f"sub-{subject}_task-{task}{run_suffix}_processed_raw.fif", overwrite=True)
 
     return f"sub-{subject} task-{task}: bads={raw.info['bads']}, ICA excluded={ica.exclude}"
+
+
+def select_ica_components(ica, raw, eog_bads, eog_bad_scores, muscle_bads, muscle_bad_scores):
+    """Interactively choose which ICA components to exclude, starting from the suggestions.
+
+    Updates ica.exclude in place. Two stages, one after the other (both plots edit
+    ica.exclude, so they must not be open at the same time):
+      1. Topomaps of all components, alongside the scores and properties of the
+         suggested ones. Click a component's title to toggle it bad (grey) or good
+         (black); click a topomap to open its properties. Close the topomap window
+         to continue.
+      2. Component time courses. Click a trace to toggle it bad (grey) or good;
+         click a component name to open its properties. Close the window to accept.
+    """
+    import matplotlib.pyplot as plt
+
+    # context for the suggestions (left open while choosing)
+    # ica.plot_scores(eog_bad_scores, exclude=eog_bads, title='EOG scores')
+    # ica.plot_scores(muscle_bad_scores, exclude=muscle_bads, title='Muscle scores')
+    # if ica.exclude:
+    #     ica.plot_properties(raw, picks=ica.exclude, show=True)
+
+    # stage 1: topomaps, wait until closed
+    print('Click component titles to mark bad/good, click topomaps for properties. '
+          'Close the topomap window to continue.')
+    figs = ica.plot_components(inst=raw, show=True)
+    figs = figs if isinstance(figs, list) else [figs]
+    while any(plt.fignum_exists(fig.number) for fig in figs):
+        plt.pause(0.1)
+
+    # stage 2: time courses, blocks until closed and sets ica.exclude on close
+    print(f'Currently excluding {sorted(ica.exclude)}. Click traces to mark bad/good. '
+          'Close the sources window to accept.')
+    ica.plot_sources(raw, block=True)
+
+    ica.exclude = sorted(int(i) for i in ica.exclude)
+    plt.close('all')
 
 
 if __name__ == '__main__':
