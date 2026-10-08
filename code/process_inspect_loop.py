@@ -109,11 +109,12 @@ def process_one(subject, task, processed_root: Path, run_suffix, auto_detect_bad
         raw.plot(duration=10, scalings=dict(eeg=40e-6), block=True)
 
     # Now ICA
+    picks = mne.pick_types(raw.info, eeg=True, exclude='bads')
     ica = ICA(n_components=20, method='infomax', max_iter="auto", rng=97)
-    ica.fit(raw, decim = 5)
+    ica.fit(raw, picks=picks, decim = 5)
 
     raw.set_channel_types({'EXG1': 'eog', 'EXG2': 'eog', 'EXG3': 'eog', 'EXG4': 'eog'})
-    eog_bads, eog_bad_scores = ica.find_bads_eog(raw, threshold=3.0)
+    eog_bads, eog_bad_scores = ica.find_bads_eog(raw, threshold=3.0, verbose=False)
     eog_bads = [int(i) for i in eog_bads]
     # if len(eog_bads) > 0:
     #     ica.plot_scores(eog_bad_scores)
