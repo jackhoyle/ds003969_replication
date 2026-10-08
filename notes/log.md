@@ -247,7 +247,7 @@ Overall we're closer but this doesn't feel completely satisfying. I could be cha
 So next:
 	2. Do a little bit more analysis just plotting within group across task comparisons. Simple lines of differences in spectral power within each group across task settings with a simple se window. (Claude can do this)
 	3. Next phase: other calculations: LRTCs and fEI. I find the criticality measures and papers really interesting so let's implement those functions manually to improve understanding of all the steps in the process. Then once it's implemented manually we can compare to an existing implementation for a double check.	
-	4. Once we have some criticality measures implemented, let's look at these for each of the groups, comparing meditation to thinking. I'll need to form some hypotheses. 1: alpha and beta LRTCs increases under meditation for the meditator groups. Perhaps it does also for the controls, but I would expect a lesser impact. 2: alpha and beta LRTCs in meditators decrease as meditation continues as there is increased meditative depth. This can be done simply comparing the means of the first and second periods. 3. In resting/non-meditative state there is no significant difference in alpha/beta LRTCs. 
+	4. Once we have some criticality measures implemented, let's look at these for each of the groups, comparing meditation to thinking. I'll need to form some hypotheses. 1: alpha and beta LRTCs increases under meditation for the meditator groups. Perhaps it does also for the controls, but I would expect a lesser impact. 2: alpha and beta LRTCs in meditators decrease as meditation continues as there is increased meditative depth. 3. In resting/non-meditative state there is no significant difference in alpha/beta LRTCs. 
 
 OK I've generated plots now looking at the differences within groups across tasks, and across groups within tasks. When I plot the z-scores for the differences nothing that crazy pops out. I reran this for v2/v3 too. It was a good exercises in getting Claude to do all of my charting but no major results. I also don't want to look into it in too much detail whilst I don't trust the data processing pipeline fully. 
 
@@ -256,3 +256,22 @@ Next step is continuing manual implementation of criticality measures. I actuall
 ### 7/10/26
 
 I've implemented simple versions of DFA and fEI and checked against `crosci`, values differ slightly as windowing is not identical, I think due to the windowing being a little different. I have however understood what's going on under the hood better, so mission achieved there.
+
+I've now got the whole pipeline running end to end and fairly fast. I've got a notebook going and have inspected the data and run some simple little regressions to test whether there are any clear effects. The only thing that stands out in my initial pass was some evidence for higher criticality in `med2` than any of the other tasks, with no significant differences between the others. This was for DFA, and the fEI stuff looks like a wash.
+
+Tomorrow I'll do some more formal analysis, along the lines of testing the hypotheses above.
+
+### 8/10/26
+
+Formal experiments: 
+
+	* Is DFA criticality higher for meditators when meditating?
+		* Aggregating the meditation conditions we don't see this, insignificant effect 	
+		* Splitting them out, nothing is significant for alpha, but for beta we get med2 having 0.05 higher DFA than the rest, significant at 0.022 p-value. This is some gentle evidence for the second hypothesis.
+		* Given this effect is present for beta but not alpha, I've looked at the rest of the bands to see if they support this being real. Delta shows nothing, theta nothing, alpha nothing, beta something, broadband similar effect but a z-score of only 1.955, which after some currently missing corrections is sure to be nothing.
+	* Resting state DFA is not siginificantly different for meditators and controls.
+		* This holds for all bands, power is not always amazing but we could reject hypotheses of 10% plus differences uniformly.
+
+That was all pretty quick and easy, but the question hanging over this all is how much I trust the data processing pipeline...
+
+I don't really want to write this up without trusting the pipeline, so I think I do need to manually check the pipeline. First step is to optimise the setup for doing this.
