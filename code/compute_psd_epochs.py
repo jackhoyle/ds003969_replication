@@ -8,6 +8,7 @@ For each processed fif file:
   4. save to an .npz with every EEG channel present (bad channels are NaN) so that
      results can be aggregated across subjects/tasks with np.nanmean.
 """
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import mne
@@ -73,23 +74,31 @@ def compute_subject_task_psd(fif_path: Path):
     )
 
 
-def main(run_suffix=run_suffix):
+def _process(fif: Path, out_path: Path):
+    result = compute_subject_task_psd(fif)
+    if result is None:
+        return f"{fif.name}: no good epochs, skipped"
+    np.savez(out_path, **result)
+    return f"{fif.name}: {result['n_epochs']} epochs, bads={list(result['bad_channels'])}"
+
+
+def main(run_suffix=run_suffix, n_jobs=1):
     processed_dir, out_dir = processed_dir_for(run_suffix), psd_dir_for(run_suffix)
     out_dir.mkdir(parents=True, exist_ok=True)
-    files = sorted(processed_dir.glob('sub-*_task-*_processed_raw.fif'))
-    for fif in files:
+    todo = []
+    for fif in sorted(processed_dir.glob('sub-*_task-*_processed_raw.fif')):
         task = fif.name.split('_task-')[1].split('_')[0]
-        if task not in tasks:
-            continue
         out_path = out_dir / fif.name.replace('_processed_raw.fif', '_psd.npz')
-        if out_path.exists():
-            continue
-        result = compute_subject_task_psd(fif)
-        if result is None:
-            print(f"{fif.name}: no good epochs, skipped")
-            continue
-        np.savez(out_path, **result)
-        print(f"{fif.name}: {result['n_epochs']} epochs, bads={list(result['bad_channels'])}")
+        if task in tasks and not out_path.exists():
+            todo.append((fif, out_path))
+
+    if n_jobs == 1:
+        for args in todo:
+            print(_process(*args))
+    elif todo:
+        with ProcessPoolExecutor(n_jobs) as pool:
+            for message in pool.map(_process, *zip(*todo)):
+                print(message)
 
 
 def load_all(psd_dir: Path = out_dir, key: str = 'psd_mean'):

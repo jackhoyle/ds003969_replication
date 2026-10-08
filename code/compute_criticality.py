@@ -11,8 +11,13 @@ load_all() collects the saved results into one long-format DataFrame (one row pe
 and main() also writes that table to criticality.csv next to the .npz folder.
 """
 from concurrent.futures import ProcessPoolExecutor
+import os
 from pathlib import Path
 import warnings
+
+# crosci's compiled DFA/fEI use OpenMP, which is ~10x slower than single-threaded for these signal
+# lengths and oversubscribes cores when run in several processes; set before crosci (libgomp) loads
+os.environ.setdefault('OMP_NUM_THREADS', '1')
 
 import mne
 import numpy as np
