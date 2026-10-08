@@ -33,7 +33,12 @@ def preprocess(
     #3: apply a high pass filter 
     if high_thresh is not None or low_thresh is not None:
         iir_params = dict(order=filter_order, ftype='butter')
-        raw.filter(l_freq=low_thresh, h_freq=high_thresh, l_trans_bandwidth=0.3, h_trans_bandwidth=0.3, method='iir', iir_params=iir_params)
+        raw.filter(l_freq=low_thresh, h_freq=high_thresh, l_trans_bandwidth=0.3, 
+            h_trans_bandwidth=0.3, method='iir', iir_params=iir_params)
+        # also filter the EOG channels
+        raw.filter(picks=['EXG1', 'EXG2', 'EXG3', 'EXG4'], l_freq=low_thresh, 
+            h_freq=high_thresh, l_trans_bandwidth=0.3, 
+            h_trans_bandwidth=0.3, method='iir', iir_params=iir_params)
 
     #4: "pop_rejcont" automated rejection of artifact segments (port of EEGLAB's pop_rejcont, see code/preprocessing.py)
     # 1 s epochs, 0.5 s step (EEGLAB 'overlap'=0.5), 0-10 Hz > 17 dB and 35-128 Hz > 14 dB, 
