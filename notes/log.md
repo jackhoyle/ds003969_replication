@@ -21,6 +21,7 @@ Data is at: https://openneuro.org/datasets/ds003969/versions/1.0.0
 
 * Authors make some conclusions regarding frequency bands including 100Hz but they don't do much to deal with 50Hz line noise. They exclude this 50Hz band but they don't account for harmonics. Is this an issue? Manual inspections doesn't show much going on at 100Hz that is abnormal.
 
+* The exclusion of two outliers in figure 4D without explanation about how they decided to do that is outrageous given that this choice is clearly entirely responsible for the positive slope they report.  
 ## Replication summary
 
 * Referenced to right mastoid (EXG6)
@@ -275,3 +276,17 @@ Formal experiments:
 That was all pretty quick and easy, but the question hanging over this all is how much I trust the data processing pipeline...
 
 I don't really want to write this up without trusting the pipeline, so I think I do need to manually check the pipeline. First step is to optimise the setup for doing this.
+
+With the setup optimised I've started running through this. I've got through 8 subjects and it's pretty slow going. As I go I feel less certain about my choices. There are some ICA components that look pretty crazy but not in a way that makes them clearly muscle or eog components. One thing I have noticed is that the picks for muscle components are actually pretty sensible but the picks for eog components are not that great and often need correcting. Maybe a quicker and easier option would be to try and improve the automated eog detection and see if that changes results. 
+
+This would fit with my previous observation that the authors' results came back when all ICA components were included, but did not come back in a significant way when I adjusted how the muscle artifacts were found.
+
+I've just noticed that the channels I was using for EOG detection, as the auxiliary channels, were not being filtered before the EOG detection was done. This seems like a gotcha. Running v2 now with the same prefiltering applied to those channels as everything else.
+
+Ah nevermind it was being filtered within the find bad function...
+
+Find a minor gotcha in that bad channels weren't being excluded before ICA... rerunning v2 now with that as the diff to check if it is significant. Things are makes now. (This makes little difference, is the v3 result here).
+
+v4 running with higher threshold for EOG, should test directly the hypothesis that differences in results from the authors are due to this component.
+
+What's next? I've got some results, maybe I'll do a bit more data cleaning, we shall see. Eventually I will write this up in a condensed form. It need not be a polished paper.  
