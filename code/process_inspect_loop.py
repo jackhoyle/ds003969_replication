@@ -21,8 +21,9 @@ auto_detect_bad_channels = True
 bids_root = root / 'mne_data' / dataset
 
 
-def process_all(run_suffix=run_suffix, auto_detect_bad_channels=auto_detect_bad_channels, n_jobs=1):
-    """Preprocess, mark bad channels, run ICA and save every subject/task to processed{run_suffix}/."""
+def process_all(run_suffix=run_suffix, auto_detect_bad_channels=auto_detect_bad_channels, n_jobs=1, run_ica=True):
+    """Preprocess, mark bad channels, run ICA (unless run_ica=False) and save every subject/task to
+    processed{run_suffix}/."""
     if not auto_detect_bad_channels:
         # interactive plots are only needed for manual bad channel marking
         import matplotlib.pyplot as plt
@@ -57,17 +58,17 @@ def process_all(run_suffix=run_suffix, auto_detect_bad_channels=auto_detect_bad_
     # manual bad channel marking needs interactive plots, so only run in parallel in auto mode
     if n_jobs == 1 or not auto_detect_bad_channels:
         for subject, task in todo:
-            print(process_one(subject, task, processed_root, run_suffix, auto_detect_bad_channels))
+            print(process_one(subject, task, processed_root, run_suffix, auto_detect_bad_channels, run_ica))
     elif todo:
         with ProcessPoolExecutor(n_jobs) as pool:
-            futures = [pool.submit(process_one, subject, task, processed_root, run_suffix, True)
+            futures = [pool.submit(process_one, subject, task, processed_root, run_suffix, True, run_ica)
                        for subject, task in todo]
             for future in futures:
                 print(future.result())
 
 
-def process_one(subject, task, processed_root: Path, run_suffix, auto_detect_bad_channels):
-    """Preprocess, mark bad channels, run ICA and save one subject/task."""
+def process_one(subject, task, processed_root: Path, run_suffix, auto_detect_bad_channels, run_ica=True):
+    """Preprocess, mark bad channels, run ICA (unless run_ica=False) and save one subject/task."""
     # load data
     logging.info(f"Loading data for subject {subject}, task {task}")
     raw: mne.io.edf.edf.RawBDF = read_raw_bids(
@@ -108,13 +109,20 @@ def process_one(subject, task, processed_root: Path, run_suffix, auto_detect_bad
         # manually mark bad channels here
         raw.plot(duration=10, scalings=dict(eeg=40e-6), block=True)
 
+    raw.set_channel_types({'EXG1': 'eog', 'EXG2': 'eog', 'EXG3': 'eog', 'EXG4': 'eog'})
+    out_path = processed_root / f"sub-{subject}_task-{task}{run_suffix}_processed_raw.fif"
+
+    if not run_ica:
+        raw.info['description'] = "ICA not run"
+        raw.save(out_path, overwrite=True)
+        return f"sub-{subject} task-{task}: bads={raw.info['bads']}, ICA not run"
+
     # Now ICA
     picks = mne.pick_types(raw.info, eeg=True, exclude='bads')
     ica = ICA(n_components=20, method='infomax', max_iter="auto", rng=97)
     ica.fit(raw, picks=picks, decim = 5)
 
-    raw.set_channel_types({'EXG1': 'eog', 'EXG2': 'eog', 'EXG3': 'eog', 'EXG4': 'eog'})
-    eog_bads, eog_bad_scores = ica.find_bads_eog(raw, threshold=3.0, verbose=False)
+    eog_bads, eog_bad_scores = ica.find_bads_eog(raw, threshold=4.0, verbose=False)
     eog_bads = [int(i) for i in eog_bads]
     # if len(eog_bads) > 0:
     #     ica.plot_scores(eog_bad_scores)
@@ -156,7 +164,7 @@ def process_one(subject, task, processed_root: Path, run_suffix, auto_detect_bad
     )
 
     # save processed data
-    raw.save(processed_root / f"sub-{subject}_task-{task}{run_suffix}_processed_raw.fif", overwrite=True)
+    raw.save(out_path, overwrite=True)
 
     return f"sub-{subject} task-{task}: bads={raw.info['bads']}, ICA excluded={ica.exclude}"
 

@@ -20,6 +20,16 @@ run_suffix = '_v2'
 
 bids_root = Path('/home/jackhoyle') / 'mne_data' / dataset
 
+# Hz, used for DFA/fEI (compute_criticality.py) and band power plots (pipeline_plots.py)
+freq_bands = {
+    'delta': (1.0, 4.0),
+    'theta': (4.0, 8.0),
+    'alpha': (8.0, 13.0),
+    'beta': (13.0, 30.0),
+    'broadband': (1.0, 30.0),
+    'gamma': (60.0, 110.0)
+}
+
 
 def processed_dir_for(run_suffix):
     return bids_root / f'processed{run_suffix}'

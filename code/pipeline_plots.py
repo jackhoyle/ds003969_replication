@@ -4,6 +4,10 @@
   - ICA components excluded per group/task (exploration/261004_ica_components.ipynb)
   - group mean ± SE power spectra          (exploration/261005_analysis.ipynb)
   - difference spectra: each group minus control, per task; and within-group task contrasts
+  - the same differences for mean power in each frequency band (freq_bands), as mean ± SE per band
+
+Every per-channel spectrum plot is also made for an 'avg' pseudo-channel (each subject's spectrum averaged over
+their good EEG channels first, then group mean ± SE over subjects).
 
 Only subject/task combinations with a saved PSD (i.e. those used in the analysis) are included.
 """
@@ -16,7 +20,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from compute_psd_epochs import load_all, tasks
+from compute_psd_epochs import freq_bands, load_all, tasks
 from plotly.colors import hex_to_rgb
 
 
@@ -48,19 +52,32 @@ def load_bad_channels(processed_root: Path, run_suffix: str) -> pd.DataFrame:
 
 
 def parse_ica_description(description):
-    # process_inspect_loop.py stores e.g. "ICA excluded components: muscle=[11, 15], eog=[np.int64(2)]"
-    muscle, eog = re.search(r'muscle=\[(.*?)\], eog=\[(.*?)\]', description).groups()
-    return [int(i) for i in re.findall(r'\d+', muscle)], [int(i) for i in re.findall(r'\d+', eog)]
+    """-> (excluded, suggested muscle, suggested eog) component indices. process_inspect_loop.py stores e.g.
+    "ICA excluded components: [2, 11] (suggested muscle=[11, 15], eog=[2])" (excluded can differ from the
+    suggestions in manual runs), or in older runs "ICA excluded components: muscle=[11, 15], eog=[2]"
+    (suggestions only, all of which were excluded), or "ICA not run" (run without ICA: nothing excluded)."""
+    def ints(s):
+        return [int(i) for i in re.findall(r'\d+', s)]
+    if description == 'ICA not run':
+        return [], [], []
+    muscle, eog = (ints(g) for g in re.search(r'muscle=\[(.*?)\], eog=\[(.*?)\]', description).groups())
+    excluded = re.match(r'ICA excluded components: \[(.*?)\]', description)
+    excluded = ints(excluded.group(1)) if excluded else sorted(set(muscle) | set(eog))
+    return excluded, muscle, eog
 
 
 def load_ica_components(processed_root: Path, run_suffix: str) -> pd.DataFrame:
     rows = []
     for subject, task, fif in _fif_files(processed_root, run_suffix):
-        muscle, eog = parse_ica_description(mne.io.read_info(fif, verbose='error')['description'])
+        excluded, muscle, eog = parse_ica_description(mne.io.read_info(fif, verbose='error')['description'])
+        suggested = set(muscle) | set(eog)  # a component flagged as both is only suggested once
         rows.append(dict(
             subject=subject, task=task,
-            n_muscle=len(muscle), n_eog=len(eog),
-            n_total=len(set(muscle) | set(eog)),  # a component flagged as both is only excluded once
+            n_total=len(excluded),
+            n_muscle=len(muscle), n_eog=len(eog),  # suggested
+            n_added=len(set(excluded) - suggested),  # manual overrides of the suggestions
+            n_rejected=len(suggested - set(excluded)),
+            excluded=excluded,
         ))
     return pd.DataFrame(rows)
 
@@ -90,26 +107,31 @@ def plot_bad_channels(df, colours):
 
 
 def plot_ica_components(df, colours):
+    types = {'n_total': 'excluded (total)', 'n_muscle': 'suggested muscle', 'n_eog': 'suggested eye (EOG)'}
+    if (df.n_added > 0).any() or (df.n_rejected > 0).any():  # only manual runs override the suggestions
+        types |= {'n_added': 'manually added', 'n_rejected': 'suggestion rejected'}
     long = df.melt(
-        id_vars=['subject', 'task', 'group'], value_vars=['n_muscle', 'n_eog'],
+        id_vars=['subject', 'task', 'group', 'excluded'], value_vars=list(types),
         var_name='component_type', value_name='n_components',
     )
-    long['component_type'] = long['component_type'].map({'n_muscle': 'muscle', 'n_eog': 'eye (EOG)'})
+    long['component_type'] = long['component_type'].map(types)
 
     box = px.box(
         long, x='group', y='n_components', color='group', points='all',
         facet_col='task', facet_row='component_type',
-        category_orders={'task': tasks, 'group': sorted(colours)}, color_discrete_map=colours,
-        hover_data=['subject'],
-        labels={'n_components': 'ICA components excluded'},
+        category_orders={'task': tasks, 'group': sorted(colours), 'component_type': list(types.values())},
+        color_discrete_map=colours,
+        hover_data=['subject', 'excluded'],
+        labels={'n_components': 'ICA components'},
         title='ICA components excluded by group',
-        height=700,
+        height=250 * len(types),
     )
     # mean ± SE of the number removed, per group (all tasks pooled)
     summary = long.groupby(['component_type', 'group']).n_components.agg(['mean', 'sem']).reset_index()
     bar = px.bar(
         summary, x='group', y='mean', error_y='sem', color='component_type', barmode='group',
-        labels={'mean': 'mean ICA components excluded', 'component_type': ''},
+        category_orders={'component_type': list(types.values())},
+        labels={'mean': 'mean ICA components', 'component_type': ''},
         title='Mean components excluded by group (all tasks pooled, ± SE)',
     )
     return box, bar
@@ -190,6 +212,77 @@ def task_differences(by_task, subjects, group_of, scale=1e12):  # V²/Hz -> µV�
     return out
 
 
+avg_channel = 'avg'  # pseudo-channel: each subject's spectrum averaged over all their good EEG channels
+
+
+def add_channel_average(by_task, ch_names):
+    """Append the avg_channel pseudo-channel: per subject (and task), the mean spectrum over channels, ignoring
+    NaNs (bad channels). Averaging happens before any group statistics, so SEs are over these subject means."""
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', RuntimeWarning)  # all channels NaN (shouldn't happen)
+        by_task = {t: np.concatenate([arr, np.nanmean(arr, axis=1, keepdims=True)], axis=1)
+                   for t, arr in by_task.items()}
+    return by_task, np.append(ch_names, avg_channel)
+
+
+def _ch_label(ch):
+    return 'avg over channels' if ch == avg_channel else ch
+
+
+def band_means(by_task, freqs, bands=freq_bands):
+    """Mean power over the frequency bins lo <= f < hi of each band (a bad channel stays NaN).
+    Returns {task: array (n_subjects, n_channels, n_bands)}, in the same form as by_task, so the spectrum
+    statistics (group_spectra, group_differences, task_differences, ...) apply to it unchanged."""
+    masks = [(freqs >= lo) & (freqs < hi) for lo, hi in bands.values()]
+    assert all(m.any() for m in masks), 'a frequency band has no PSD bins'
+    return {t: np.stack([arr[..., m].mean(axis=-1) for m in masks], axis=-1) for t, arr in by_task.items()}
+
+
+def band_label(band, bands=freq_bands, freqs=None):
+    """Axis label with the band's edges, and the PSD bins actually averaged if they differ (e.g. delta when
+    the PSD starts above 1 Hz)."""
+    lo, hi = bands[band]
+    label = f'{band}<br>{lo:g}–{hi:g} Hz'
+    if freqs is not None:
+        used = freqs[(freqs >= lo) & (freqs < hi)]
+        if used[0] != lo or used[-1] + (freqs[1] - freqs[0]) != hi:
+            label += f'<br>(bins {used[0]:g}–{used[-1]:g})'
+    return label
+
+
+def plot_band_differences(diffs, ch_names, ch, condition, colours, labels, title, height=500):
+    """Mean difference ± SE in band power per group for one channel and condition, bands on the x axis."""
+    ch_ix = list(ch_names).index(ch)
+    fig = go.Figure()
+    for group in sorted(colours):
+        if (condition, group) not in diffs:
+            continue
+        mean, se = (a[ch_ix] for a in diffs[(condition, group)])
+        fig.add_trace(go.Bar(
+            x=labels, y=mean, error_y=dict(type='data', array=se), name=group, marker_color=colours[group],
+            customdata=np.stack([se, mean / se], axis=-1),
+            hovertemplate=f'{group}<br>%{{y:.3g}} ± %{{customdata[0]:.2g}} (z = %{{customdata[1]:.2f}})<extra></extra>',
+        ))
+    fig.add_hline(y=0, line=dict(color='grey', width=1))
+    fig.update_layout(
+        title=title, height=height, barmode='group',
+        xaxis_title='Frequency band', yaxis_title='Difference in mean band power (µV²/Hz)',
+        legend_title_text='group',
+    )
+    return fig
+
+
+def band_table(diffs, ch_names, comparison, band_names):
+    """Long-format table of band differences: comparison, condition, group, channel, band, mean, se, z."""
+    rows = []
+    for (condition, group), (mean, se) in diffs.items():
+        for c, ch in enumerate(ch_names):
+            for b, band in enumerate(band_names):
+                rows.append(dict(comparison=comparison, condition=condition, group=group, channel=ch, band=band,
+                                 mean=mean[c, b], se=se[c, b], z=mean[c, b] / se[c, b]))
+    return pd.DataFrame(rows)
+
+
 def plot_group_spectrum(spectra, freqs, ch_names, ch, condition, colours, title=None, zscore=False,
                         height=500):
     """Group mean spectrum for one channel and condition (a task, or a contrast), with a shaded mean ± SE band.
@@ -223,7 +316,7 @@ def plot_group_spectrum(spectra, freqs, ch_names, ch, condition, colours, title=
         for y in (-1.96, 1.96):
             fig.add_hline(y=y, line=dict(color='grey', width=1, dash='dash'))
     fig.update_layout(
-        title=title or f'{ch} - {condition} (group mean ± SE)', height=height,
+        title=title or f'{_ch_label(ch)} - {condition} (group mean ± SE)', height=height,
         xaxis_title='Frequency (Hz)', yaxis_title='z (difference / SE)' if zscore else 'PSD (µV²/Hz)',
         yaxis_type='linear' if zscore else 'log',
         legend_title_text='group', hovermode='x unified',
@@ -237,6 +330,8 @@ def make_all_plots(bids_root: Path, run_suffix: str, psd_dir: Path, plots_dir: P
     plots_dir.mkdir(parents=True, exist_ok=True)
 
     by_task, freqs, ch_names, subjects = load_all(psd_dir, key='psd_mean')
+    by_task, ch_names = add_channel_average(by_task, ch_names)
+    channels = [*channels, avg_channel]
     used = pd.DataFrame([(s, t) for t, subs in subjects.items() for s in subs], columns=['subject', 'task'])
 
     subject_info = pd.read_csv(bids_root / 'participants.tsv', sep='\t')
@@ -258,7 +353,7 @@ def make_all_plots(bids_root: Path, run_suffix: str, psd_dir: Path, plots_dir: P
     for name, fig in zip(['bad_channels_box', 'bad_channels_mean_se'], plot_bad_channels(bads, colours)):
         fig.write_html(plots_dir / f'{name}.html', include_plotlyjs='cdn')
 
-    ica = with_groups(load_ica_components(processed_root, run_suffix), ['n_muscle', 'n_eog'])
+    ica = with_groups(load_ica_components(processed_root, run_suffix), ['n_total', 'n_muscle', 'n_eog'])
     ica.to_csv(plots_dir / 'ica_components.csv', index=False)
     for name, fig in zip(['ica_components_box', 'ica_components_mean_se'], plot_ica_components(ica, colours)):
         fig.write_html(plots_dir / f'{name}.html', include_plotlyjs='cdn')
@@ -271,26 +366,51 @@ def make_all_plots(bids_root: Path, run_suffix: str, psd_dir: Path, plots_dir: P
             plot_group_spectrum(spectra, freqs, ch_names, ch, task, colours) \
                 .write_html(spectra_dir / f'{ch}_{task}.html', include_plotlyjs='cdn')
 
-    # each non-control group minus control, per task and for each subject's mean over tasks (trait difference)
-    vs_control = group_differences(spectra, control)
-    vs_control |= group_differences(group_spectra(*subject_task_means(by_task, subjects), group_of), control)
+    # band power: each subject's mean power per band, then the same statistics as for the spectra
+    by_band = band_means(by_task, freqs)
+    labels = [band_label(b, freqs=freqs) for b in freq_bands]
+
+    def vs_control_diffs(arrays):
+        # each non-control group minus control, per task and for each subject's mean over tasks (trait difference)
+        diffs = group_differences(group_spectra(arrays, subjects, group_of), control)
+        return diffs | group_differences(group_spectra(*subject_task_means(arrays, subjects), group_of), control)
+
+    vs_control = vs_control_diffs(by_task)
+    band_vs_control = vs_control_diffs(by_band)
     vs_control_dir = plots_dir / f'spectra_diff_vs_{control}'
+    band_vs_control_dir = plots_dir / f'bands_diff_vs_{control}'
     vs_control_dir.mkdir(exist_ok=True)
+    band_vs_control_dir.mkdir(exist_ok=True)
     for ch in channels:
         for task in [*by_task, 'all_tasks']:
-            label = 'all tasks (subject mean)' if task == 'all_tasks' else task
+            label = f'{_ch_label(ch)} - {"all tasks (subject mean)" if task == "all_tasks" else task}: group − {control}'
             plot_group_spectrum(vs_control, freqs, ch_names, ch, task, colours, zscore=True,
-                                title=f'{ch} - {label}: group − {control} (z of mean difference)') \
+                                title=f'{label} (z of mean difference)') \
                 .write_html(vs_control_dir / f'{ch}_{task}.html', include_plotlyjs='cdn')
+            plot_band_differences(band_vs_control, ch_names, ch, task, colours, labels,
+                                  title=f'{label} (mean band power difference ± SE)') \
+                .write_html(band_vs_control_dir / f'{ch}_{task}.html', include_plotlyjs='cdn')
 
     # within-group task contrasts (paired, per subject)
     contrasts = task_differences(by_task, subjects, group_of)
+    band_contrasts = task_differences(by_band, subjects, group_of)
     contrasts_dir = plots_dir / 'spectra_diff_tasks'
+    band_contrasts_dir = plots_dir / 'bands_diff_tasks'
     contrasts_dir.mkdir(exist_ok=True)
+    band_contrasts_dir.mkdir(exist_ok=True)
     for ch in channels:
         for name, (plus, minus) in task_contrasts.items():
-            title = f'{ch} - avg({", ".join(plus)}) − avg({", ".join(minus)})' if len(plus) > 1 \
-                else f'{ch} - {plus[0]} − {minus[0]}'
+            title = f'{_ch_label(ch)} - avg({", ".join(plus)}) − avg({", ".join(minus)})' if len(plus) > 1 \
+                else f'{_ch_label(ch)} - {plus[0]} − {minus[0]}'
             plot_group_spectrum(contrasts, freqs, ch_names, ch, name, colours, zscore=True,
                                 title=f'{title} within group (z of mean paired difference)') \
                 .write_html(contrasts_dir / f'{ch}_{name}.html', include_plotlyjs='cdn')
+            plot_band_differences(band_contrasts, ch_names, ch, name, colours, labels,
+                                  title=f'{title} within group (mean paired band power difference ± SE)') \
+                .write_html(band_contrasts_dir / f'{ch}_{name}.html', include_plotlyjs='cdn')
+
+    # band differences for every channel, for analysis beyond the plotted channels
+    pd.concat([
+        band_table(band_vs_control, ch_names, f'group − {control}', list(freq_bands)),
+        band_table(band_contrasts, ch_names, 'task contrast', list(freq_bands)),
+    ]).to_csv(plots_dir / 'band_differences.csv', index=False)

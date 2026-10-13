@@ -16,6 +16,7 @@ Usage (from the code/ directory):
     python run_pipeline.py --suffix _v2 --plots-only --channels Oz Pz Fz
     python run_pipeline.py --suffix _v4 --skip-processing --n-jobs 8
     python run_pipeline.py --suffix _v5 --manual
+    python run_pipeline.py --suffix _noica --no-ica
 """
 import argparse
 import logging
@@ -36,6 +37,8 @@ def parse_args():
     parser.add_argument('--manual', action='store_true',
                         help='manually mark bad channels and choose ICA components in step 1 '
                              '(interactive, runs serially)')
+    parser.add_argument('--no-ica', action='store_true',
+                        help='skip ICA in step 1, so no components are removed')
     parser.add_argument('--skip-criticality', action='store_true',
                         help='skip DFA/fEI (step 3), which is the slowest step after ICA')
     parser.add_argument('--plots-only', action='store_true',
@@ -53,7 +56,8 @@ def main():
         # imported here so --plots-only doesn't need the processing dependencies
         from process_inspect_loop import process_all
         logging.info(f'Step 1/4: processing raw data -> processed{args.suffix}')
-        process_all(run_suffix=args.suffix, auto_detect_bad_channels=not args.manual, n_jobs=args.n_jobs)
+        process_all(run_suffix=args.suffix, auto_detect_bad_channels=not args.manual, n_jobs=args.n_jobs,
+                    run_ica=not args.no_ica)
 
     if not args.plots_only:
         logging.info(f'Step 2/4: computing epoch PSDs -> {psd_dir_for(args.suffix)}')

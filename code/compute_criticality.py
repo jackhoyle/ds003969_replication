@@ -24,17 +24,10 @@ import numpy as np
 import pandas as pd
 from crosci.biomarkers import DFA, fEI
 
-from compute_psd_epochs import bids_root, processed_dir_for, tasks
+from compute_psd_epochs import bids_root, freq_bands, processed_dir_for, tasks
 
 run_suffix = '_v4'
 
-freq_bands = {
-    'delta': (1.0, 4.0),
-    'theta': (4.0, 8.0),
-    'alpha': (8.0, 13.0),
-    'beta': (13.0, 30.0),
-    'broadband': (1.0, 30.0),
-}
 EPOCH_LEN = 180.0              # s
 DFA_WINDOW = (5.0, 30.0)       # s, window sizes the DFA is computed and fitted over
 FEI_WINDOW = 5.0               # s
