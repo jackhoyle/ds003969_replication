@@ -13,6 +13,7 @@ from pathlib import Path
 
 import mne
 import numpy as np
+import pandas as pd
 
 dataset = "ds003969"
 tasks = ['think1', 'think2', 'med1breath', 'med2']
@@ -29,6 +30,21 @@ freq_bands = {
     'broadband': (1.0, 30.0),
     'gamma': (60.0, 110.0)
 }
+
+
+paper_subjects_csv = Path(__file__).parent / 'paper_subjects.csv'
+
+
+def paper_subjects() -> set[str]:
+    """Subject ids (e.g. '034') of the 64 age/gender-matched participants analysed by Braboszcz et al. (2017),
+    from the subject list in their Zenodo deposit (doi 10.5281/zenodo.57911) mapped to ds003969 ids by recording
+    date; 63 are in ds003969 (HYT26 is missing). See writeup/results/paper_included_subjects.csv."""
+    df = pd.read_csv(paper_subjects_csv)
+    return set(df.loc[df.in_dataset, 'participant_id'].str.removeprefix('sub-'))
+
+
+def subject_of(path: Path) -> str:
+    return path.name.split('_')[0].removeprefix('sub-')
 
 
 def processed_dir_for(run_suffix):
@@ -92,13 +108,16 @@ def _process(fif: Path, out_path: Path):
     return f"{fif.name}: {result['n_epochs']} epochs, bads={list(result['bad_channels'])}"
 
 
-def main(run_suffix=run_suffix, n_jobs=1):
+def main(run_suffix=run_suffix, n_jobs=1, subjects=None):
+    """subjects: optional set of subject ids (e.g. paper_subjects()) to restrict to; None means all."""
     processed_dir, out_dir = processed_dir_for(run_suffix), psd_dir_for(run_suffix)
     out_dir.mkdir(parents=True, exist_ok=True)
     todo = []
     for fif in sorted(processed_dir.glob('sub-*_task-*_processed_raw.fif')):
         task = fif.name.split('_task-')[1].split('_')[0]
         out_path = out_dir / fif.name.replace('_processed_raw.fif', '_psd.npz')
+        if subjects is not None and subject_of(fif) not in subjects:
+            continue
         if task in tasks and not out_path.exists():
             todo.append((fif, out_path))
 
@@ -111,17 +130,20 @@ def main(run_suffix=run_suffix, n_jobs=1):
                 print(message)
 
 
-def load_all(psd_dir: Path = out_dir, key: str = 'psd_mean'):
+def load_all(psd_dir: Path = out_dir, key: str = 'psd_mean', only_subjects=None):
     """Load saved results -> {task: array (n_subjects, n_channels, n_freqs)}, freqs, ch_names,
-    {task: [subject ids]} (ids in the same order as axis 0 of each task's array)."""
+    {task: [subject ids]} (ids in the same order as axis 0 of each task's array).
+    only_subjects: optional set of subject ids to restrict to; None loads all."""
     by_task = {t: [] for t in tasks}
     subjects = {t: [] for t in tasks}
     freqs = ch_names = None
     for f in sorted(psd_dir.glob('sub-*_psd.npz')):
+        if only_subjects is not None and subject_of(f) not in only_subjects:
+            continue
         task = f.name.split('_task-')[1].split('_')[0]
         d = np.load(f)
         by_task[task].append(d[key])
-        subjects[task].append(f.name.split('_')[0].removeprefix('sub-'))
+        subjects[task].append(subject_of(f))
         freqs, ch_names = d['freqs'], d['ch_names']
     present = [t for t, v in by_task.items() if v]
     return ({t: np.stack(by_task[t]) for t in present}, freqs, ch_names,

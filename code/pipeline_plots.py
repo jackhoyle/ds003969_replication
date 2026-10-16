@@ -324,12 +324,14 @@ def plot_group_spectrum(spectra, freqs, ch_names, ch, condition, colours, title=
     return fig
 
 
-def make_all_plots(bids_root: Path, run_suffix: str, psd_dir: Path, plots_dir: Path, channels, control='ctr'):
-    """Write all summary plots (HTML) and their underlying tables (CSV) to plots_dir."""
+def make_all_plots(bids_root: Path, run_suffix: str, psd_dir: Path, plots_dir: Path, channels, control='ctr',
+                   only_subjects=None):
+    """Write all summary plots (HTML) and their underlying tables (CSV) to plots_dir.
+    only_subjects: optional set of subject ids to restrict every plot and table to; None uses all."""
     processed_root = bids_root / f'processed{run_suffix}'
     plots_dir.mkdir(parents=True, exist_ok=True)
 
-    by_task, freqs, ch_names, subjects = load_all(psd_dir, key='psd_mean')
+    by_task, freqs, ch_names, subjects = load_all(psd_dir, key='psd_mean', only_subjects=only_subjects)
     by_task, ch_names = add_channel_average(by_task, ch_names)
     channels = [*channels, avg_channel]
     used = pd.DataFrame([(s, t) for t, subs in subjects.items() for s in subs], columns=['subject', 'task'])

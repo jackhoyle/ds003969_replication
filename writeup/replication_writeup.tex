@@ -8,6 +8,7 @@
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
 \usepackage{enumitem}
+\usepackage{float}
 \setlist{nosep,leftmargin=1.4em}
 \captionsetup{font=small,labelfont=bf}
 
@@ -123,7 +124,7 @@ Two smaller points came up along the way:
 
 \begin{table}[h]
 \centering\small
-\begin{tabular}{@{}lp{6.3cm}p{2.5cm}p{4.6cm}@{}}
+\begin{tabular}{@{}p{2.6cm}p{5.1cm}p{3.2cm}p{4.4cm}@{}}
 \toprule
 Run & ICA rule & ICs removed per recording & Gamma at Oz, \texttt{med2} \\
 \midrule
@@ -336,7 +337,7 @@ Next steps, in priority order:
 \appendix
 \section{Figures from the project log}
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
 \begin{subfigure}{0.49\linewidth}\includegraphics[width=\linewidth]{figures/image-1.png}\caption{First run (aggressive ICA).}\end{subfigure}
 \begin{subfigure}{0.49\linewidth}\includegraphics[width=\linewidth]{figures/image-2.png}\caption{Paper, Fig.~3.}\end{subfigure}\\[4pt]
@@ -346,10 +347,10 @@ Next steps, in priority order:
 \label{fig:paper}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
-\begin{subfigure}{0.49\linewidth}\includegraphics[width=\linewidth]{figures/image-4.png}\caption{First run.}\end{subfigure}
-\begin{subfigure}{0.49\linewidth}\includegraphics[width=\linewidth]{figures/image-8.png}\caption{Capped run.}\end{subfigure}
+\begin{subfigure}{0.8\linewidth}\includegraphics[width=\linewidth]{figures/image-4.png}\caption{First run.}\end{subfigure}\\[4pt]
+\begin{subfigure}{0.8\linewidth}\includegraphics[width=\linewidth]{figures/image-8.png}\caption{Capped run.}\end{subfigure}
 \caption{ICA components removed per recording, by group and task, split into muscle (top) and EOG (bottom).}
 \label{fig:ica}
 \end{figure}

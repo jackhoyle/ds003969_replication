@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 from crosci.biomarkers import DFA, fEI
 
-from compute_psd_epochs import bids_root, freq_bands, processed_dir_for, tasks
+from compute_psd_epochs import bids_root, freq_bands, processed_dir_for, subject_of, tasks
 
 run_suffix = '_v4'
 
@@ -102,20 +102,24 @@ def _process(fif: Path, out_path: Path):
     return f"{fif.name}: {result['n_epochs']} epochs, bads={list(result['bad_channels'])}"
 
 
-def main(run_suffix=run_suffix, n_jobs=1):
+def main(run_suffix=run_suffix, n_jobs=1, subjects=None):
+    """subjects: optional set of subject ids (e.g. compute_psd_epochs.paper_subjects()) to restrict to; None means
+    all. criticality.csv always holds every result present in the folder; filter it with load_all(only_subjects=...)."""
     processed_dir, out_dir = processed_dir_for(run_suffix), criticality_dir_for(run_suffix)
     out_dir.mkdir(parents=True, exist_ok=True)
     todo = []
     for fif in sorted(processed_dir.glob('sub-*_task-*_processed_raw.fif')):
         task = fif.name.split('_task-')[1].split('_')[0]
         out_path = out_dir / fif.name.replace('_processed_raw.fif', '_criticality.npz')
+        if subjects is not None and subject_of(fif) not in subjects:
+            continue
         if task in tasks and not out_path.exists():
             todo.append((fif, out_path))
 
     if n_jobs == 1:
         for args in todo:
             print(_process(*args))
-    else:
+    elif todo:
         with ProcessPoolExecutor(n_jobs) as pool:
             for message in pool.map(_process, *zip(*todo)):
                 print(message)
@@ -124,12 +128,15 @@ def main(run_suffix=run_suffix, n_jobs=1):
         load_all(out_dir).to_csv(criticality_csv_for(run_suffix), index=False)
 
 
-def load_all(criticality_dir: Path = criticality_dir_for(run_suffix)) -> pd.DataFrame:
+def load_all(criticality_dir: Path = criticality_dir_for(run_suffix), only_subjects=None) -> pd.DataFrame:
     """Load saved results -> long-format DataFrame with columns
     subject, task, band, channel, dfa, fei, n_epochs, bad (one row per subject/task/band/channel).
-    Bad channels are included with NaN dfa/fei, so drop them with df[~df.bad] or dropna()."""
+    Bad channels are included with NaN dfa/fei, so drop them with df[~df.bad] or dropna().
+    only_subjects: optional set of subject ids to restrict to; None loads all."""
     frames = []
     for f in sorted(criticality_dir.glob('sub-*_criticality.npz')):
+        if only_subjects is not None and subject_of(f) not in only_subjects:
+            continue
         d = np.load(f)
         n_bands, n_channels = d['dfa'].shape
         frames.append(pd.DataFrame(dict(

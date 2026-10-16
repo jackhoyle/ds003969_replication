@@ -1,0 +1,65 @@
+lab_id,paper_group,paper_age,participant_id,in_dataset,match
+CTR11,CTR,30,sub-034,True,recording date
+CTR12,CTR,45,sub-035,True,age + filename date
+CTR13,CTR,50,sub-036,True,recording date
+CTR14,CTR,47,sub-037,True,recording date
+CTR15,CTR,36,sub-038,True,recording date
+CTR16,CTR,33,sub-039,True,recording date
+CTR19,CTR,48,sub-042,True,age + filename date
+CTR20,CTR,57,sub-043,True,age + filename date
+CTR25,CTR,60,sub-047,True,recording date
+CTR26,CTR,30,sub-048,True,recording date
+CTR27,CTR,53,sub-049,True,recording date
+CTR28,CTR,50,sub-050,True,recording date
+CTR30,CTR,49,sub-052,True,recording date
+CTR31,CTR,60,sub-053,True,recording date
+CTR32,CTR,32,sub-054,True,recording date
+CTR33,CTR,47,sub-055,True,recording date
+HYT1,HYT,26,sub-001,True,recording date
+HYT13,HYT,48,sub-013,True,age + filename date
+HYT14,HYT,54,sub-014,True,recording date
+HYT15,HYT,69,sub-015,True,recording date
+HYT16,HYT,27,sub-016,True,recording date
+HYT18,HYT,36,sub-018,True,recording date
+HYT20,HYT,67,sub-020,True,recording date
+HYT21,HYT,66,sub-021,True,recording date
+HYT24,HYT,54,sub-022,True,recording date
+HYT25,HYT,56,sub-023,True,recording date
+HYT26,HYT,59,,False,not in ds003969 (no HTR26 file)
+HYT5,HYT,38,sub-005,True,recording date
+HYT6,HYT,33,sub-006,True,recording date
+HYT7,HYT,31,sub-007,True,recording date
+HYT8,HYT,56,sub-008,True,recording date
+HYT9,HYT,58,sub-009,True,recording date
+ISY10,ISY,25,sub-088,True,recording date
+ISY11,ISY,40,sub-089,True,recording date
+ISY12,ISY,43,sub-090,True,recording date
+ISY13,ISY,33,sub-091,True,recording date
+ISY14,ISY,50,sub-092,True,recording date
+ISY15,ISY,40,sub-093,True,recording date
+ISY16,ISY,53,sub-094,True,recording date
+ISY17,ISY,35,sub-095,True,recording date
+ISY18,ISY,27,sub-096,True,recording date
+ISY20,ISY,60,sub-098,True,recording date
+ISY3,ISY,38,sub-081,True,recording date
+ISY4,ISY,35,sub-082,True,recording date
+ISY5,ISY,37,sub-083,True,recording date
+ISY6,ISY,58,sub-084,True,recording date
+ISY7,ISY,35,sub-085,True,age + filename SNY07_16032011
+ISY9,ISY,33,sub-087,True,recording date
+VIP6,VIP,62,sub-065,True,recording date
+VIP1,VIP,43,sub-060,True,recording date
+VIP10,VIP,62,sub-069,True,recording date
+VIP11,VIP,55,sub-070,True,recording date
+VIP12,VIP,35,sub-071,True,recording date
+VIP13,VIP,40,sub-072,True,recording date
+VIP14,VIP,37,sub-073,True,recording date
+VIP15,VIP,26,sub-074,True,recording date
+VIP16,VIP,42,sub-075,True,recording date
+VIP19,VIP,72,sub-077,True,age + filename date
+VIP2,VIP,29,sub-061,True,recording date
+VIP20,VIP,71,sub-078,True,recording date
+VIP3,VIP,41,sub-062,True,recording date
+VIP4,VIP,53,sub-063,True,recording date
+VIP5,VIP,30,sub-064,True,recording date
+VIP7,VIP,50,sub-066,True,recording date

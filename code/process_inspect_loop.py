@@ -21,9 +21,10 @@ auto_detect_bad_channels = True
 bids_root = root / 'mne_data' / dataset
 
 
-def process_all(run_suffix=run_suffix, auto_detect_bad_channels=auto_detect_bad_channels, n_jobs=1, run_ica=True):
+def process_all(run_suffix=run_suffix, auto_detect_bad_channels=auto_detect_bad_channels, n_jobs=1, run_ica=True,
+                only_subjects=None):
     """Preprocess, mark bad channels, run ICA (unless run_ica=False) and save every subject/task to
-    processed{run_suffix}/."""
+    processed{run_suffix}/. only_subjects: optional set of subject ids (e.g. '034') to restrict to."""
     if not auto_detect_bad_channels:
         # interactive plots are only needed for manual bad channel marking
         import matplotlib.pyplot as plt
@@ -35,6 +36,8 @@ def process_all(run_suffix=run_suffix, auto_detect_bad_channels=auto_detect_bad_
     # detect all subjects/tasks present in the dataset; combinations whose
     # recording is missing (e.g. not downloaded) are skipped in the loop below
     subjects = get_entity_vals(bids_root, 'subject')
+    if only_subjects is not None:
+        subjects = [s for s in subjects if s in only_subjects]
     tasks = get_entity_vals(bids_root, 'task')
     logging.info(f"Found subjects {subjects} and tasks {tasks} in {dataset}")
 
