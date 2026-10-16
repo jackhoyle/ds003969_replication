@@ -8,3 +8,9 @@ PyQt5
 pytest
 ipykernel
 crosci
+pandas
+scipy
+scikit-learn
+statsmodels
+plotly
+pyarrow
