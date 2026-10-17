@@ -2,11 +2,12 @@
 
 A from-scratch MNE-Python replication of [Braboszcz et al. (2017)](https://pmc.ncbi.nlm.nih.gov/articles/PMC5261734/), which amongst other things reports higher gamma (60–110 Hz) power in meditators than in controls. The project uses the public dataset [OpenNeuro ds003969](https://openneuro.org/datasets/ds003969/versions/1.0.0) and extends the analysis to criticality measures: long-range temporal correlations (DFA) and functional E/I balance (fEI).
 
-**Findings so far** (details in [writeup/](writeup/)). All results use the paper's own age- and gender-matched sample (63 of its 64 participants), recovered from the authors' Zenodo deposit because the dataset doesn't record which participants the paper analysed. Earlier full-sample runs gave a misleading picture and are superseded.
-- **The pipeline reproduces the paper:** without ICA, per-subject parieto-occipital gamma matches the paper's published values at r = 0.97, and group differences agree to within 0.6 dB.
+**Findings so far** (details in [writeup/](writeup/)):
+- **The pipeline reproduces the paper:** without ICA, per-subject parieto-occipital gamma matches the paper's published values at r = 0.97, and group differences agree to within 0.6 dB. Remaining discrepancies are attributable to manual processes such as bad period identification or bad ICA component exclusion.
 - **Gamma replicates:** meditators exceed controls by about 4 dB during meditation. Automated ICA shrinks this to about 2.5 dB (still significant when the three traditions are pooled), mostly through a few recordings.
 - **Alpha replicates:** the Vipassana group has more 7–11 Hz power than controls and the other traditions.
-- **Criticality shows no meditator–control differences.** The one within-meditator effect (beta DFA higher in the second meditation block) appears equally in controls, so it looks like time-on-task.
+- **Criticality shows no meditator–control trait differences.** This holds for DFA and fEI in alpha and beta, in line with the results in [Lewis-Healey et al. (2026)](https://www.biorxiv.org/content/10.64898/2026.08.07.743470v1), although fEI is extremely noisy.
+- **No firm conclusions can be drawn about differences in criticality dynamics.** Directionally estimates of changes in criticality during meidtation align with [Lewis-Healey et al. (2026)](https://www.biorxiv.org/content/10.64898/2026.08.07.743470v1), however these results are only marginally significant and the experimental set up has many drawbacks.
 
 ## Layout
 
