@@ -289,4 +289,13 @@ Find a minor gotcha in that bad channels weren't being excluded before ICA... re
 
 v4 running with higher threshold for EOG, should test directly the hypothesis that differences in results from the authors are due to this component.
 
-What's next? I've got some results, maybe I'll do a bit more data cleaning, we shall see. Eventually I will write this up in a condensed form. It need not be a polished paper.  
+What's next? I've got some results, maybe I'll do a bit more data cleaning, we shall see. Eventually I will write this up in a condensed form. It need not be a polished paper.
+
+### 16/10/26
+
+Back looking at this after a week at MoC. Getting Claude to autowrite the report was a good exercise, as it uncovered some issues and gave a nice framing for the writeup.
+
+Next steps:
+
+* Rerun matching the sample from the original paper. I'd overlooked they did a sample matching strategy. This is now rerunning and regenerating everything with run suffix `_matchsample_v0`
+* Afterwards I need to run a `_matchsample_noica_v0` version and compare the results and see if all the headline stuff holds.

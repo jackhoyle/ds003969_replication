@@ -2,3 +2,4 @@
 __pycache__/
 .vscode/
 !writeup/replication_writeup.pdf
+!writeup/figures/*.pdf

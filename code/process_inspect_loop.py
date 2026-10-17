@@ -125,7 +125,7 @@ def process_one(subject, task, processed_root: Path, run_suffix, auto_detect_bad
     ica = ICA(n_components=20, method='infomax', max_iter="auto", rng=97)
     ica.fit(raw, picks=picks, decim = 5)
 
-    eog_bads, eog_bad_scores = ica.find_bads_eog(raw, threshold=4.0, verbose=False)
+    eog_bads, eog_bad_scores = ica.find_bads_eog(raw, threshold=3.0, verbose=False)
     eog_bads = [int(i) for i in eog_bads]
     # if len(eog_bads) > 0:
     #     ica.plot_scores(eog_bad_scores)
