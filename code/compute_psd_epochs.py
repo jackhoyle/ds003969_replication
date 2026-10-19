@@ -7,6 +7,10 @@ For each processed fif file:
   3. average across epochs
   4. save to an .npz with every EEG channel present (bad channels are NaN) so that
      results can be aggregated across subjects/tasks with np.nanmean.
+
+With interpolate_bads=True, bad channels are instead interpolated (spherical splines) before step 1, so every
+channel has a value; results go to a separate folder (psd_dir_for(..., interpolated=True)). Cluster statistics over
+electrodes (cluster_stats.py) need this.
 """
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -51,8 +55,8 @@ def processed_dir_for(run_suffix):
     return bids_root / f'processed{run_suffix}'
 
 
-def psd_dir_for(run_suffix):
-    return bids_root / f'outputs{run_suffix}' / 'psd_epoch_mean'
+def psd_dir_for(run_suffix, interpolated=False):
+    return bids_root / f'outputs{run_suffix}' / ('psd_epoch_mean_interp' if interpolated else 'psd_epoch_mean')
 
 
 processed_dir = processed_dir_for(run_suffix)
@@ -62,9 +66,12 @@ FMIN, FMAX = 2, 110
 EPOCH_LEN = 1.0
 
 
-def compute_subject_task_psd(fif_path: Path):
+def compute_subject_task_psd(fif_path: Path, interpolate_bads=False):
     raw = mne.io.read_raw_fif(fif_path, preload=True, verbose='error')
     all_eeg = [raw.ch_names[i] for i in mne.pick_types(raw.info, eeg=True, exclude=[])]
+    bads = list(raw.info['bads'])
+    if interpolate_bads and bads:
+        raw.interpolate_bads(reset_bads=True, verbose='error')
 
     # reject_by_annotation (default True) drops any epoch overlapping a BAD_ annotation
     epochs = mne.make_fixed_length_epochs(
@@ -74,25 +81,29 @@ def compute_subject_task_psd(fif_path: Path):
     if n_epochs == 0:
         return None
 
-    # picks='eeg' excludes info['bads'] by default
+    # explicit good-channel picks: with picks='eeg', the Spectrum's ch_names still list the bad channels while its
+    # data rows exclude them, so names and rows would not line up
+    good = [epochs.ch_names[i] for i in mne.pick_types(epochs.info, eeg=True, exclude='bads')]
     psd = epochs.compute_psd(
         method='welch', fmin=FMIN, fmax=FMAX,
         n_fft=epochs.get_data().shape[-1],  # one segment per epoch -> 1 Hz resolution
-        window='hann', picks='eeg', verbose='error',
+        window='hann', picks=good, verbose='error',
     )
     data = psd.get_data()  # (n_epochs, n_good_channels, n_freqs), V^2/Hz
+    assert list(psd.ch_names) == good and data.shape[1] == len(good)
 
     def to_full(arr):
         # put into the full EEG channel list, NaN where the channel was bad
         full = np.full((len(all_eeg), arr.shape[-1]), np.nan)
-        for row, ch in zip(arr, psd.ch_names):
+        for row, ch in zip(arr, good, strict=True):
             full[all_eeg.index(ch)] = row
         return full
 
     return dict(
         freqs=psd.freqs,
         ch_names=np.array(all_eeg),
-        bad_channels=np.array(raw.info['bads']),
+        bad_channels=np.array(bads),
+        interpolated=interpolate_bads,
         n_epochs=n_epochs,
         psd_mean=to_full(data.mean(axis=0)),                  # linear-power mean
         psd_median=to_full(np.median(data, axis=0)),          # robust to outlier epochs
@@ -100,17 +111,18 @@ def compute_subject_task_psd(fif_path: Path):
     )
 
 
-def _process(fif: Path, out_path: Path):
-    result = compute_subject_task_psd(fif)
+def _process(fif: Path, out_path: Path, interpolate_bads=False):
+    result = compute_subject_task_psd(fif, interpolate_bads)
     if result is None:
         return f"{fif.name}: no good epochs, skipped"
     np.savez(out_path, **result)
     return f"{fif.name}: {result['n_epochs']} epochs, bads={list(result['bad_channels'])}"
 
 
-def main(run_suffix=run_suffix, n_jobs=1, subjects=None):
-    """subjects: optional set of subject ids (e.g. paper_subjects()) to restrict to; None means all."""
-    processed_dir, out_dir = processed_dir_for(run_suffix), psd_dir_for(run_suffix)
+def main(run_suffix=run_suffix, n_jobs=1, subjects=None, interpolate_bads=False):
+    """subjects: optional set of subject ids (e.g. paper_subjects()) to restrict to; None means all.
+    interpolate_bads: interpolate bad channels instead of leaving them NaN; writes to a separate folder."""
+    processed_dir, out_dir = processed_dir_for(run_suffix), psd_dir_for(run_suffix, interpolate_bads)
     out_dir.mkdir(parents=True, exist_ok=True)
     todo = []
     for fif in sorted(processed_dir.glob('sub-*_task-*_processed_raw.fif')):
@@ -119,7 +131,7 @@ def main(run_suffix=run_suffix, n_jobs=1, subjects=None):
         if subjects is not None and subject_of(fif) not in subjects:
             continue
         if task in tasks and not out_path.exists():
-            todo.append((fif, out_path))
+            todo.append((fif, out_path, interpolate_bads))
 
     if n_jobs == 1:
         for args in todo:

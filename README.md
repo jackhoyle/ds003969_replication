@@ -31,18 +31,25 @@ The data location is hard-coded as `bids_root` (`~/mne_data/ds003969`) in `code/
 Run the pipeline from `code/`:
 
 ```bash
-python run_pipeline.py --suffix _matchsample_v0 --paper-subjects                 # preprocess + ICA -> PSDs -> DFA/fEI -> plots
-python run_pipeline.py --suffix _matchsample_noica_v0 --paper-subjects --no-ica  # same without ICA
-python run_pipeline.py --help                                                    # all options (manual ICA review, skipping steps, ...)
+python run_pipeline.py --suffix _matchsample_v0 --paper-subjects --max-bad-channels 0                 # preprocess + ICA -> PSDs -> DFA/fEI -> plots
+python run_pipeline.py --suffix _matchsample_noica_v0 --paper-subjects --max-bad-channels 0 --no-ica  # same without ICA
+python run_pipeline.py --help                                                                          # all options (manual ICA review, skipping steps, ...)
 ```
 
-These are the two runs behind the write-up. `--paper-subjects` restricts every step to the paper's matched sample (listed in `code/paper_subjects.csv`); without it, the pipeline processes all 98 participants.
+These are the two runs behind the write-up. `--paper-subjects` restricts every step to the paper's matched sample (listed in `code/paper_subjects.csv`); without it, the pipeline processes all 98 participants. `--max-bad-channels 0` turns off the cap on automatically marked bad channels, which those runs predate. The default caps them at 20 per recording, dropping the weakest suggestions first, starting with those made only by the spectral detector.
+
+Cluster statistics over electrodes need every channel to have a value. For that, add `--interpolate-bads`, which interpolates bad channels before computing spectra and writes them to `psd_epoch_mean_interp/`. To add interpolated spectra to an existing run without reprocessing:
+
+```bash
+python run_pipeline.py --suffix _matchsample_v0 --paper-subjects --interpolate-bads --skip-processing --skip-criticality
+```
 
 Each run writes to two folders next to the data: `processed{suffix}/` holds the cleaned recordings, and `outputs{suffix}/` holds per-recording PSDs, `criticality.csv` and HTML plots. Results that already exist are skipped, so re-runs are cheap.
 
 The pipeline has four steps:
 1. **Preprocessing:** right-mastoid reference, 256 Hz, 1 Hz high-pass, `pop_rejcont` artefact rejection, automatic bad-channel detection, then Infomax ICA with automatic EOG/muscle component removal (1–5 components per recording, to mirror the paper's manual choice).
-2. **Spectra:** PSDs from 1 s epochs.
+2. **Spectra:** PSDs from 1 s epochs, with bad channels left empty or (with `--interpolate-bads`) interpolated.
 3. **Criticality:** DFA and fEI per frequency band via `crosci`, on 180 s epochs.
 4. **Plots:** group plots.
 
+The paper's cluster permutation tests over electrodes are in `code/cluster_stats.py`. `writeup/scripts/cluster_tests.py` runs them on the matched sample's interpolated spectra, writing `writeup/results/matched/cluster_tests.csv` and topographic maps to `writeup/figures/cluster_*.pdf`.

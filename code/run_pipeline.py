@@ -12,13 +12,10 @@ With --manual, step 1 runs serially and opens interactive plots to mark bad chan
 and choose ICA components for each subject/task.
 
 Usage (from the code/ directory):
-    python run_pipeline.py --suffix _v3
-    python run_pipeline.py --suffix _v2 --plots-only --channels Oz Pz Fz
-    python run_pipeline.py --suffix _v4 --skip-processing --n-jobs 8
-    python run_pipeline.py --suffix _v5 --manual
-    python run_pipeline.py --suffix _noica --no-ica
-    python run_pipeline.py --suffix _v4 --paper-subjects   # only the paper's 63 matched subjects, plots -> plots_paper/
+    python run_pipeline.py --suffix _matchsample_v1 --interpolate-bads --paper-subjects
+    python run_pipeline.py --suffix _matchsample_noica_v1 --interpolate-bads --paper-subjects --no-ica
 """
+
 import argparse
 import logging
 
@@ -40,6 +37,13 @@ def parse_args():
                              '(interactive, runs serially)')
     parser.add_argument('--no-ica', action='store_true',
                         help='skip ICA in step 1, so no components are removed')
+    parser.add_argument('--max-bad-channels', type=int, default=20,
+                        help='step 1: at most this many automatically marked bad channels per recording; over it, the '
+                             'weakest suggestions are dropped, spectral-only ones first. 0 means no cap '
+                             '(default: %(default)s)')
+    parser.add_argument('--interpolate-bads', action='store_true',
+                        help='step 2: interpolate bad channels before computing PSDs, writing to psd_epoch_mean_interp/ '
+                             '(and plots to plots*_interp/) instead of leaving them NaN; needed for cluster statistics')
     parser.add_argument('--paper-subjects', action='store_true',
                         help="restrict every step to the paper's age/gender-matched subjects (paper_subjects.csv); "
                              'plots are written to plots_paper/ instead of plots/')
@@ -64,20 +68,23 @@ def main():
         from process_inspect_loop import process_all
         logging.info(f'Step 1/4: processing raw data -> processed{args.suffix}')
         process_all(run_suffix=args.suffix, auto_detect_bad_channels=not args.manual, n_jobs=args.n_jobs,
-                    run_ica=not args.no_ica, only_subjects=subjects)
+                    run_ica=not args.no_ica, only_subjects=subjects, max_bad_channels=args.max_bad_channels)
 
+    psd_dir = psd_dir_for(args.suffix, interpolated=args.interpolate_bads)
     if not args.plots_only:
-        logging.info(f'Step 2/4: computing epoch PSDs -> {psd_dir_for(args.suffix)}')
-        compute_psd_epochs.main(run_suffix=args.suffix, n_jobs=args.n_jobs, subjects=subjects)
+        logging.info(f'Step 2/4: computing epoch PSDs -> {psd_dir}')
+        compute_psd_epochs.main(run_suffix=args.suffix, n_jobs=args.n_jobs, subjects=subjects,
+                                interpolate_bads=args.interpolate_bads)
 
     if not (args.skip_criticality or args.plots_only):
         import compute_criticality  # needs crosci
         logging.info(f'Step 3/4: computing DFA/fEI -> {compute_criticality.criticality_dir_for(args.suffix)}')
         compute_criticality.main(run_suffix=args.suffix, n_jobs=args.n_jobs, subjects=subjects)
 
-    plots_dir = bids_root / f'outputs{args.suffix}' / ('plots_paper' if args.paper_subjects else 'plots')
+    plots_dir = (bids_root / f'outputs{args.suffix}' /
+                 (('plots_paper' if args.paper_subjects else 'plots') + ('_interp' if args.interpolate_bads else '')))
     logging.info(f'Step 4/4: writing plots -> {plots_dir}')
-    pipeline_plots.make_all_plots(bids_root, args.suffix, psd_dir_for(args.suffix), plots_dir, args.channels,
+    pipeline_plots.make_all_plots(bids_root, args.suffix, psd_dir, plots_dir, args.channels,
                                   only_subjects=subjects)
     logging.info('Done')
 

@@ -20,11 +20,45 @@ auto_detect_bad_channels = True
 
 bids_root = root / 'mne_data' / dataset
 
+# bad channel detection: LOF score at or above which a channel is suggested as bad
+WAVEFORM_LOF_THRESHOLD = 1.5
+SPECTRAL_LOF_THRESHOLD = 2
+MAX_BAD_CHANNELS = 20
+
+
+def cap_bad_channels(waveform_scores, spectral_scores, max_bad_channels=MAX_BAD_CHANNELS, n_existing=0):
+    """Combine the two detectors' suggestions, keeping at most max_bad_channels bad channels in total.
+
+    waveform_scores / spectral_scores: {channel: LOF score}. A channel is suggested by a detector when its score is
+    at or above that detector's threshold. The strength of a suggestion is score / threshold (>= 1).
+    n_existing: channels already marked bad, which always stay bad and count towards the cap.
+    max_bad_channels: None or 0 means no cap.
+
+    Over the cap, suggestions are dropped in this order:
+      1. channels suggested only by the spectral detector, weakest first;
+      2. channels suggested only by the waveform detector, weakest first;
+      3. channels suggested by both, weakest (by their larger strength) first.
+    Returns (kept, dropped): channel name lists, each strongest first.
+    """
+    waveform = {ch: s / WAVEFORM_LOF_THRESHOLD for ch, s in waveform_scores.items() if s >= WAVEFORM_LOF_THRESHOLD}
+    spectral = {ch: s / SPECTRAL_LOF_THRESHOLD for ch, s in spectral_scores.items() if s >= SPECTRAL_LOF_THRESHOLD}
+
+    def priority(ch):  # larger = kept first
+        tier = 2 if (ch in waveform and ch in spectral) else 1 if ch in waveform else 0
+        return tier, max(waveform.get(ch, 0), spectral.get(ch, 0))
+
+    ranked = sorted(set(waveform) | set(spectral), key=priority, reverse=True)
+    if not max_bad_channels:
+        return ranked, []
+    n_keep = max(max_bad_channels - n_existing, 0)
+    return ranked[:n_keep], ranked[n_keep:]
+
 
 def process_all(run_suffix=run_suffix, auto_detect_bad_channels=auto_detect_bad_channels, n_jobs=1, run_ica=True,
-                only_subjects=None):
+                only_subjects=None, max_bad_channels=MAX_BAD_CHANNELS):
     """Preprocess, mark bad channels, run ICA (unless run_ica=False) and save every subject/task to
-    processed{run_suffix}/. only_subjects: optional set of subject ids (e.g. '034') to restrict to."""
+    processed{run_suffix}/. only_subjects: optional set of subject ids (e.g. '034') to restrict to.
+    max_bad_channels: cap on automatically marked bad channels (see cap_bad_channels); None or 0 for no cap."""
     if not auto_detect_bad_channels:
         # interactive plots are only needed for manual bad channel marking
         import matplotlib.pyplot as plt
@@ -61,16 +95,19 @@ def process_all(run_suffix=run_suffix, auto_detect_bad_channels=auto_detect_bad_
     # manual bad channel marking needs interactive plots, so only run in parallel in auto mode
     if n_jobs == 1 or not auto_detect_bad_channels:
         for subject, task in todo:
-            print(process_one(subject, task, processed_root, run_suffix, auto_detect_bad_channels, run_ica))
+            print(process_one(subject, task, processed_root, run_suffix, auto_detect_bad_channels, run_ica,
+                              max_bad_channels))
     elif todo:
         with ProcessPoolExecutor(n_jobs) as pool:
-            futures = [pool.submit(process_one, subject, task, processed_root, run_suffix, True, run_ica)
+            futures = [pool.submit(process_one, subject, task, processed_root, run_suffix, True, run_ica,
+                                   max_bad_channels)
                        for subject, task in todo]
             for future in futures:
                 print(future.result())
 
 
-def process_one(subject, task, processed_root: Path, run_suffix, auto_detect_bad_channels, run_ica=True):
+def process_one(subject, task, processed_root: Path, run_suffix, auto_detect_bad_channels, run_ica=True,
+                max_bad_channels=MAX_BAD_CHANNELS):
     """Preprocess, mark bad channels, run ICA (unless run_ica=False) and save one subject/task."""
     # load data
     logging.info(f"Loading data for subject {subject}, task {task}")
@@ -94,16 +131,27 @@ def process_one(subject, task, processed_root: Path, run_suffix, auto_detect_bad
 
     # now inspect and mark bad channels if needed
     # automated bad channel suggestions
-    bad_waveform_dist = mne.preprocessing.find_bad_channels_lof(raw, picks='eeg', threshold=1.5)
+    good_eeg = mne.pick_types(raw.info, eeg=True, exclude='bads')
+    bad_waveform_dist, waveform_scores = mne.preprocessing.find_bad_channels_lof(
+        raw, picks=good_eeg, threshold=WAVEFORM_LOF_THRESHOLD, return_scores=True)
+    # MNE returns LOF scores negated (flags |score| >= threshold)
+    waveform_scores = dict(zip([str(raw.ch_names[i]) for i in good_eeg], abs(waveform_scores)))
     # for spectral dist suggestion restrict to less than 45Hz to avoid line noise
     # for this replication line noise is just excluded for analysis
-    bad_spectral_dist = find_bad_channels_psd_lof(raw, fmax=45, threshold=2, verbose=False)
+    bad_spectral_dist, spectral_scores = find_bad_channels_psd_lof(
+        raw, fmax=45, threshold=SPECTRAL_LOF_THRESHOLD, return_scores=True, verbose=False)
+    spectral_scores = {str(ch): score for ch, score in spectral_scores.items()}
 
     print(f'sub-{subject} task-{task}: suggested bad channels from waveform dist: {bad_waveform_dist}')
     print(f'sub-{subject} task-{task}: suggested bad channels from spectral dist: {bad_spectral_dist}')
 
     if auto_detect_bad_channels:
-        raw.info['bads'] = list(set(raw.info['bads'] + bad_waveform_dist + bad_spectral_dist))
+        suggested, dropped = cap_bad_channels(waveform_scores, spectral_scores, max_bad_channels,
+                                              n_existing=len(raw.info['bads']))
+        if dropped:
+            print(f'sub-{subject} task-{task}: {len(suggested) + len(dropped)} bad channels suggested, over the cap '
+                  f'of {max_bad_channels}; not marking the weakest: {dropped}')
+        raw.info['bads'] = list(dict.fromkeys(raw.info['bads'] + suggested))
     else:
         # manual bad channel marking
         psd = raw.compute_psd(verbose=False)
