@@ -471,21 +471,31 @@ as in the spectral analysis: 72 recordings from 49 subjects.
   \item \textbf{fEI.} Beta and gamma show no group differences (joint $p = .62$ and $.85$). In alpha, VIP has
         higher fEI than controls ($+0.20$, $p = .003$), and the joint test rejects equal groups ($p = .003$), so
         $H_1$ does not hold for alpha fEI. HYT and ISY do not differ from controls. This was unexpected but
-        in ways aligns with the finding of higher alpha power in VIP. Given the average alpha fEI of 0.93, 
-        this estimate suggests alpha dynamics operating in an excitatory regime for VIP subjects.
-  \item \textbf{The alpha fEI result is not driven by a few subjects:} 11 of the 12 VIP subjects lie above the
-        control median, and a rank test on subject means agrees ($p = .006$). VIP also has the highest alpha power
-        (Section~\ref{sec:power}), and fEI correlates with alpha power across subjects (Spearman $\rho = 0.46$). Since
-        fEI estimates are more reliable for stronger oscillations, part of the difference may reflect power. The VIP
-        difference remains when trait alpha power is added to the regression ($+0.18$, $p = .03$).
+        in ways aligns with the finding of higher alpha power in VIP. This result is not driven by a 
+        few subjects: alpha fEI lies above the control median for 11 of the 12 VIP subjects.
+%   \item \textbf{It cannot be separated from alpha power.} VIP also has the highest alpha power
+%         (Section~\ref{sec:power}), and fEI tracks alpha power closely. With power measured in the same band and
+%         channels as fEI (8--13\,Hz, all good channels), the two correlate across subjects (Spearman $\rho = 0.59$,
+%         $p < .001$), and within subjects fEI rises by 0.05 per dB of alpha power across their recordings
+%         ($p < .001$). Adding trait alpha power to the regression reduces the VIP difference to $+0.13$ ($p = .08$).
+%         This coupling could reflect a measurement effect, since fEI estimates depend on how strongly the oscillation
+%         stands out from the background, or a shared mechanism, since a shift in excitation/inhibition balance would
+%         change amplitude and its dynamics together. Either way, VIP's higher alpha fEI largely accompanies their higher
+%         alpha power and cannot be distinguished from it in these data.
 \end{itemize}
+Interestingly, this fEI result mirrors the alpha power results: VIP shows higher alpha power than controls, 
+while HYT and ISY do not differ from controls. Measuring alpha power in the same band as fEI (8--13\,Hz) 
+we find a correlation of 0.59 ($p < .001$) between alpha power and alpha fEI for VIP subjects. This is an interesting
+relationship, and two explanations that cannot be distinguished by this data present themselves: it could be that higher 
+alpha power drives observed increases in fEI (fEI estimates depend on the prominence of the oscillation), 
+or that both are driven by a common underlying factor such as excitation/inhibition balance.
 
 \paragraph{$H_2$: DFA increases during meditation.} This uses all four blocks for the meditators: 117 recordings
 from 40 subjects.
 \begin{itemize}
   \item \textbf{Beta DFA rises from \texttt{med1breath} to \texttt{med2}} ($+0.061$, $p = .009$). Alpha shows a
         smaller rise ($+0.039$, $p = .055$), and gamma none.
-  \item \textbf{The rise cannot be separated from time on task.} \texttt{med2} always directly follows
+  \item \textbf{This rise cannot be separated from time on task.} \texttt{med2} always directly follows
         \texttt{med1breath}, so the first-to-second-block change also contains any generic effect of time spent in
         the task. The comparison with the thinking pair, (\texttt{med2} $-$ \texttt{med1breath}) $-$
         (\texttt{think2} $-$ \texttt{think1}), isolates the part specific to meditation. It has a similar point 
@@ -493,18 +503,19 @@ from 40 subjects.
         alpha $p = .63$, gamma $p = .97$).
 \end{itemize}
 So the data show an increase in beta DFA over the meditation session, in the direction $H_2$ predicts. However, there
-is insufficient evidence to conclude that the increase is specifically due to meditation rather than to 
-the passage of time within a pair of blocks.
+is insufficient evidence to conclude that the increase is specifically due to meditation rather than a generic time
+on task effect.
 
 \paragraph{Session order.} DFA is lower in the second pair of blocks, after the break, in every band. The difference
 is significant in beta ($-0.052$, $p = .044$ in the $H_1$ model; $-0.043$, $p = .014$ in the $H_2$ model) and
-close to significance in alpha ($p = .09$ in both).
+close to significance in alpha ($p = .09$ in both). Subjects completed other tasks between the first and second 
+pairs of blocks. These are not documented in Braboszcz et al. (2017), but notes referring to them exist in the 
+dataset. It's possible these tasks were responsible for the observed session order effect.
 
 \paragraph{Without ICA.} Appendix Fig.~\ref{fig:critnoica} repeats both analyses on the no-ICA pipeline. The
 results do not differ: no DFA estimate changes by more than 0.02 and no fEI estimate by more than 0.04. The only
 term that changes significance is VIP $-$ CTR in beta fEI ($+0.09$, $p = .043$ without ICA; $+0.05$, $p = .25$
 with ICA); the alpha fEI difference holds in both ($p = .005$ without ICA).
-
 
 As noted in section \ref{sec:critmethod}, the choice to use base 180 second epochs for the criticality analysis 
 means a lot of data is dropped, with only 59\% of recordings having at least one usable epoch. To test
@@ -546,25 +557,25 @@ to \texttt{med2}, and that change minus the change from \texttt{think1} to \text
 Here we have largely replicated the data processing pipeline and analysis
 of Braboszcz et al. (2017). As a learning exercise this has been very fruitful, covering 
 the early stages of EEG data processing through to the final statistical analyses. 
-The main conclusions of the analysis have been:
-\begin{itemize}
-      \item The authors' (Braboszcz et al., 2017) headline results on gamma power in meditators and alpha power specifically in 
-            vipassana practitioners both replicate and do so robustly to different choices made in the 
-            preprocessing pipeline.
-      \item The authors' result on the relationship between gamma power and years of meditative experience
-            has been shown to be extremely fragile, depending entirely on the choice to drop two observations
-             as outliers.
-      \item Criticality measures show no significant trait differences in DFA between meditators and controls, 
-            consistent with the findings of Lewis-Healey et al. (2026).
-      \item This dataset has neither a sufficient sample size nor an ideal experimental design to 
-            robustly test for changes in criticality during meditation in meditators.
-      \item There is evidence for higher alpha fEI for vipassana practitioners relative to controls and
-            other meditation practitioners. This aligns with the finding of higher alpha power
-            for this group. This suggests alpha dynamics operating in an excitatory regime, where all 
-            other groups are in a more inhibition-dominated regime.
-\end{itemize}
 
-The obvious next questions following this analysis are:
+In constructing the pipeline, the main difficulty in replicating the original design
+was steps that required unspecified manual intervention, such as artifact rejection and channel selection.
+Ultimately it was not possible to exactly replicate the processing and fortunately it was not necessary,
+as all analysis shown above was robust to different choices made during preprocessing.
+Really this is a better outcome than an exact replication as we actually learn something
+about the robustness of the findings.
+
+The authors' (Braboszcz et al., 2017) results on gamma power in meditators and alpha power specifically in 
+vipassana practitioners both replicate and do so robustly to different choices made in the 
+preprocessing pipeline. However, their result on the relationship between gamma power and years of meditative experience
+has been shown to be extremely fragile, depending entirely on the choice to drop two observations
+as outliers.
+
+A further analysis of criticality metrics (DFA and fEI) found no trait differences in DFA between
+controls or meditators of any type, consistent with the findings of Lewis-Healey et al. (2026).
+However, there is some evidence for higher trait alpha fEI specifically in vipassana practitioners. 
+This aligns with the finding of higher alpha power for this group, and the two findings are difficult to separate.
+
 
 
 
