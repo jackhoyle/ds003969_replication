@@ -1,7 +1,8 @@
 """Per-subject/task DFA exponent and fEI (crosci) per frequency band, excluding bad channels and bad time spans.
 
 Ported from exploration/261007_crosci.ipynb. For each processed fif file:
-  1. split into 180 s fixed-length epochs; epochs overlapping a BAD_* annotation are dropped
+  1. split into fixed-length epochs (EPOCH_LEN, 180 s by default); epochs overlapping a BAD_* annotation are
+     dropped. Other epoch lengths are written to their own folder (criticality_{epoch_len}s/)
   2. per frequency band: band-pass filter each epoch and take the Hilbert amplitude envelope
   3. DFA exponent and fEI per channel and epoch, then average across epochs (ignoring NaNs:
      fEI is NaN where the DFA exponent is too low for it to be meaningful)
@@ -34,12 +35,16 @@ FEI_WINDOW = 5.0               # s
 FEI_OVERLAP = 0.8              # fraction of overlap between fEI windows
 
 
-def criticality_dir_for(run_suffix):
-    return bids_root / f'outputs{run_suffix}' / 'criticality'
+def _epoch_tag(epoch_len):
+    return '' if epoch_len == EPOCH_LEN else f'_{epoch_len:g}s'
 
 
-def criticality_csv_for(run_suffix):
-    return bids_root / f'outputs{run_suffix}' / 'criticality.csv'
+def criticality_dir_for(run_suffix, epoch_len=EPOCH_LEN):
+    return bids_root / f'outputs{run_suffix}' / f'criticality{_epoch_tag(epoch_len)}'
+
+
+def criticality_csv_for(run_suffix, epoch_len=EPOCH_LEN):
+    return bids_root / f'outputs{run_suffix}' / f'criticality{_epoch_tag(epoch_len)}.csv'
 
 
 def compute_dfa_fei(epochs: mne.Epochs, l_freq: float, h_freq: float):
@@ -63,7 +68,7 @@ def compute_dfa_fei(epochs: mne.Epochs, l_freq: float, h_freq: float):
         return np.nanmean(dfa, axis=0), np.nanmean(fei, axis=0)
 
 
-def compute_subject_task_criticality(fif_path: Path):
+def compute_subject_task_criticality(fif_path: Path, epoch_len=EPOCH_LEN):
     raw = mne.io.read_raw_fif(fif_path, preload=True, verbose='error')
     all_eeg = [raw.ch_names[i] for i in mne.pick_types(raw.info, eeg=True, exclude=[])]
     bads = list(raw.info['bads'])
@@ -71,7 +76,7 @@ def compute_subject_task_criticality(fif_path: Path):
 
     # reject_by_annotation drops any epoch overlapping a BAD_ annotation
     epochs = mne.make_fixed_length_epochs(
-        raw, duration=EPOCH_LEN, preload=True, reject_by_annotation=True, verbose='error'
+        raw, duration=epoch_len, preload=True, reject_by_annotation=True, verbose='error'
     )
     if len(epochs) == 0:
         return None
@@ -89,23 +94,25 @@ def compute_subject_task_criticality(fif_path: Path):
         ch_names=np.array(all_eeg),
         bad_channels=np.array(bads),
         n_epochs=len(epochs),
+        epoch_len=epoch_len,
         dfa=dfa,
         fei=fei,
     )
 
 
-def _process(fif: Path, out_path: Path):
-    result = compute_subject_task_criticality(fif)
+def _process(fif: Path, out_path: Path, epoch_len=EPOCH_LEN):
+    result = compute_subject_task_criticality(fif, epoch_len)
     if result is None:
-        return f"{fif.name}: no good {EPOCH_LEN:g} s epochs, skipped"
+        return f"{fif.name}: no good {epoch_len:g} s epochs, skipped"
     np.savez(out_path, **result)
     return f"{fif.name}: {result['n_epochs']} epochs, bads={list(result['bad_channels'])}"
 
 
-def main(run_suffix=run_suffix, n_jobs=1, subjects=None):
+def main(run_suffix=run_suffix, n_jobs=1, subjects=None, epoch_len=EPOCH_LEN):
     """subjects: optional set of subject ids (e.g. compute_psd_epochs.paper_subjects()) to restrict to; None means
-    all. criticality.csv always holds every result present in the folder; filter it with load_all(only_subjects=...)."""
-    processed_dir, out_dir = processed_dir_for(run_suffix), criticality_dir_for(run_suffix)
+    all. criticality.csv always holds every result present in the folder; filter it with load_all(only_subjects=...).
+    epoch_len: epoch length in s; lengths other than EPOCH_LEN write to their own folder and csv."""
+    processed_dir, out_dir = processed_dir_for(run_suffix), criticality_dir_for(run_suffix, epoch_len)
     out_dir.mkdir(parents=True, exist_ok=True)
     todo = []
     for fif in sorted(processed_dir.glob('sub-*_task-*_processed_raw.fif')):
@@ -114,7 +121,7 @@ def main(run_suffix=run_suffix, n_jobs=1, subjects=None):
         if subjects is not None and subject_of(fif) not in subjects:
             continue
         if task in tasks and not out_path.exists():
-            todo.append((fif, out_path))
+            todo.append((fif, out_path, epoch_len))
 
     if n_jobs == 1:
         for args in todo:
@@ -125,7 +132,7 @@ def main(run_suffix=run_suffix, n_jobs=1, subjects=None):
                 print(message)
 
     if any(out_dir.glob('sub-*_criticality.npz')):
-        load_all(out_dir).to_csv(criticality_csv_for(run_suffix), index=False)
+        load_all(out_dir).to_csv(criticality_csv_for(run_suffix, epoch_len), index=False)
 
 
 def load_all(criticality_dir: Path = criticality_dir_for(run_suffix), only_subjects=None) -> pd.DataFrame:

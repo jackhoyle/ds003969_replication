@@ -12,29 +12,81 @@
 \setlist{nosep,leftmargin=1.4em}
 \captionsetup{font=small,labelfont=bf}
 \newcommand{\todo}[1]{\textcolor{red}{[#1]}}
+\newcommand{\doi}[1]{\href{https://doi.org/#1}{\nolinkurl{doi:#1}}}
 
-\title{Replicating the analysis of Braboszcz et al.\ (2017) on OpenNeuro \texttt{ds003969}:\\
-pipeline decisions, sensitivity, and a look at criticality}
+\title{Replicating and extending the analysis of Braboszcz et al.\ (2017) on OpenNeuro \texttt{ds003969}}
 \date{October 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-\todo{Write abstract}
+We replicate the EEG analysis of Braboszcz et al.\ (2017), who reported higher gamma (60--110\,Hz) power in meditators
+from three traditions than in controls, higher alpha power in Vipassana practitioners, and a correlation between
+gamma power and meditation experience. Using the public OpenNeuro dataset \texttt{ds003969}, we rebuilt their pipeline
+in MNE-Python, replacing manual preprocessing steps with automated equivalents. Without ICA,
+our per-subject parieto-occipital gamma closely matches the paper's own values ($r = 0.97$). The gamma and alpha
+group differences replicate, with or without automated ICA, though ICA weakens the gamma effect for Vipassana
+practitioners. The correlation between gamma and log practice hours reproduces exactly ($r = 0.33$),
+but only after removing two outliers. When outlier detection is repeated within the bootstrap, the confidence
+interval includes zero, and our own gamma values show no relationship. We then extend the analysis to criticality,
+measuring long-range temporal correlations (DFA) and functional excitation/inhibition balance (fEI). DFA shows no
+differences between meditators and controls, consistent with recent work. Vipassana practitioners show higher alpha
+fEI, which closely tracks their higher alpha power. Beta DFA rises from the first to the second meditation block, but
+this cannot be separated from a generic time-on-task effect. These results are robust to removing ICA and to using
+shorter analysis epochs.
 \end{abstract}
 
 %-------------------------------------------------------------------------------
-\section{The original paper: approach and findings}
+\section{Introduction}
+
+In an effort to learn more about EEG preprocessing and analysis, this project aimed to replicate and 
+extend the findings of Braboszcz et al.\ (2017) using the OpenNeuro dataset \texttt{ds003969}. This paper 
+analyses EEG recordings for meditators from 3 different traditions alongside controls, across meditation and
+instructed mind-wandering conditions. Analysis focused on spectral power differences and their relationship 
+to meditation experience.
+
+To be clear, this is a replication of the analysis and EEG preprocessing of Braboszcz et al.\ (2017), 
+using the publicly available dataset \texttt{ds003969} which they released, rather than a replication of 
+their result on different data.
+
+In addition to replicating the original findings, this project incorporated additional analysis looking at 
+criticality measures,
+inspired by Lewis-Healey et al. (2026)'s recent findings on effort(lessness) and criticality during meditation. 
+Criticality measures used were based on the detrended fluctuation analysis (DFA) framework of Linkenkaer-Hansen et al.\ (2001) and Hardstone et al.\ (2012)
+with functional excitation/inhibition balance (fEI) providing another complementary measure, based on the
+approach of Bruining et al.\ (2020).
+
+The concrete tasks were:
+\begin{itemize}
+  \item \textbf{Build an equivalent pipeline in MNE-Python}, matching the authors' description of their MATLAB pipeline
+       as closely as the text allows.
+  \item \textbf{Replicate the headline results on spectral power:}
+        \begin{itemize}
+          \item higher parieto-occipital gamma (60--110\,Hz) in each meditator group than in controls, as a trait
+                and during MED;
+          \item higher alpha (7--11\,Hz) for Vipassana practitioners than in each of the other groups during meditation;
+          \item higher parieto-occipital gamma for meditators correlated with log lifetime practice hours.
+        \end{itemize}
+  \item \textbf{Extend the analysis to criticality.} Compute long-range temporal correlations (DFA) and functional
+        excitation/inhibition balance (fEI), testing the hypotheses that:
+      \begin{itemize}
+          \item DFA and fEI have no trait differences between meditators and controls;
+          \item DFA increases over time during meditation.
+        \end{itemize}
+\end{itemize}
+
+\section{The original paper}
+
 \label{sec:paper}
 
-Braboszcz et al. (2017) recorded EEG data from experienced meditators and non-meditating controls, across 
+Braboszcz et al. (2017) recorded EEG data from experienced meditators and non-meditator controls, across 
 meditation and instructed mind-wandering conditions. Experienced meditators came from three different
 meditation traditions: Himalayan Yoga, Isha Shoonya, and Vipassana. 
 
 Their analysis focuses on differences in resting state EEG spectral power in particular frequency bands between
 meditators and controls. Finding some significant differences, they go on to find a relationship between
-the difference in gamma power observed in meditators and years of meditative practice.
+the difference in gamma power observed in meditators and lifetime hours of meditative practice.
 
 \paragraph{Participants and setting.} Data were collected at the Meditation Research Institute in Rishikesh,
 India. Meditators were recruited for their expertise in one of three traditions:
@@ -46,10 +98,10 @@ India. Meditators were recruited for their expertise in one of three traditions:
       \item \textbf{Transcendental Meditation (TM):} a practice involving the silent repetition of a mantra, 
       typically for 20 minutes twice a day. These were excluded from the main analysis as there were only a few participants practicing TM.
 \end{itemize}
-Controls (CTR) had no meditation practice. From 99 people recruited (27 HYT, 20 ISY, 20 VIP, 32 CTR), the authors
-formed four groups of 16, matched on age and gender, for 64 in total. Mean ages were 40--49 per group and did not
-differ significantly. HYT and VIP had more lifetime practice than ISY (means of roughly 15{,}000 and 9{,}000 hours
-against 2{,}600).
+Controls (CTR) had no meditation practice. From a reported 99 people recruited (27 HYT, 20 ISY, 20 VIP, 32 CTR), 
+the authors formed four groups of 16, matched on age and gender, for 64 in total. 
+Mean ages were 40--49 per group and did not differ significantly. HYT and VIP had more lifetime practice 
+than ISY (means of roughly 15{,}000 and 9{,}000 hours against 2{,}600).
 
 \paragraph{Design.} Each participant did two 20-minute blocks, with eyes closed in a dark, soundproof room:
 \begin{itemize}
@@ -73,70 +125,54 @@ computed from 1\,s epochs and compared with cluster permutation tests over elect
   \item \textbf{Gamma (60--110\,Hz):} all three meditator groups had higher parieto-occipital power than controls,
         both as a trait (MED and IMW combined) and during MED.
   \item \textbf{Alpha (7--11\,Hz):} VIP had more power than each of the other three groups, during MED and IMW.
-  \item \textbf{Experience:} parieto-occipital gamma correlated with log lifetime practice hours ($r=0.33$; Fig.~4D).
+  \item \textbf{Experience:} parieto-occipital gamma correlated with log lifetime practice hours ($r=0.33$; their Fig.~4D).
   \item \textbf{Artefact controls:} temporal-muscle components did not correlate with gamma. Eye-movement
         components did ($r=0.33$), but they did not correlate with experience, and the authors concluded that
-        artefacts were unlikely to explain the gamma effect.
+        artefacts were unlikely to explain the gamma findings.
 \end{itemize}
 The paper's spectra by group are reproduced in Fig.~\ref{fig:paper}.
 
 %-------------------------------------------------------------------------------
-\section{Objectives of this replication}
 
-At a higher level, the obective of this project was to learn the details of how EEG pipelines are
-constructed and validated. The concrete tasks were:
-\begin{itemize}
-  \item \textbf{Build an equivalent pipeline in MNE-Python}, matching the authors' description as closely as the
-        text allows and replacing manual steps with automated equivalents where necessary.
-  \item \textbf{Replicate the headline results on spectral power:}
-        \begin{itemize}
-          \item higher parieto-occipital gamma (60--110\,Hz) in each meditator group than in controls, as a trait
-                and during MED;
-          \item higher alpha (7--11\,Hz) in VIP than in each of the other groups during MED.
-          \item higher parieto-occipital gamma for meditators correlated with log lifetime practice hours.
-        \end{itemize}
-  \item \textbf{Extend the analysis to criticality.} Compute long-range temporal correlations (DFA) and functional
-        excitation/inhibition balance (fEI), following the recent preprint ``Near-critical brain dynamics track
-        effortlessness during meditation'' (Lewis-Healey et al., 2026), and test whether they differ between
-        meditators and controls or between meditation and mind-wandering.
-\end{itemize}
-
-%-------------------------------------------------------------------------------
 \section{Data}
 \label{sec:data}
 
 \paragraph{The dataset.} OpenNeuro \texttt{ds003969} (v1.0.0) contains 64-channel Biosemi recordings of 98
-participants: 31 CTR, 24 HYT (``HTR'' in the dataset), 20 ISY (``SNY''), 19 VIP and 4 Transcendental Meditation.
-Each participant's two sessions are released as four $\sim$10-minute BDF files: \texttt{think1}, \texttt{think2},
+participants: 31 CTR, 24 HYT (``HTR'' in the dataset), 20 ISY (``SNY''), 19 VIP and 4 Transcendental Meditation. 
+These counts don't line up exactly with those reported in the paper.
+Each participant's two sessions are recorded in four $\sim$10-minute BDF files: \texttt{think1}, \texttt{think2},
 \texttt{med1breath} (breath focus) and \texttt{med2} (the tradition's own practice; breath focus for controls).
 The paper's analysis periods are therefore \texttt{think2} (IMW) and \texttt{med2} (MED).
-In this release \texttt{Fp1} is replaced by \texttt{EXG8}, the spare electrode wired in its place.
+Due to a defect, electrode \texttt{Fp1} is replaced by \texttt{EXG8}, the spare electrode wired in its place.
 
 \paragraph{Session timing.} The recording start times in the BDF headers show how the blocks were scheduled. Both
 blocks of a session were recorded back to back, and the two sessions were separated by a
-median of 66\,minutes (range 47--89), all on one day. Half of the participants did the MED session first and half
-the IMW session first, as recorded in the \texttt{first\_session} column of \texttt{participants.tsv}; this agrees
+median of 66\,minutes (range 47--89), all on one day. Roughly half of the participants did the MED session first (51 of 98) and half
+the IMW session first (47), as recorded in the \texttt{first\_session} column of \texttt{participants.tsv}; this agrees
 with the timestamps for all 98. Within a session the order is fixed, so \texttt{med2} always directly follows
 \texttt{med1breath}. 
 
 \paragraph{The paper's subject list (Zenodo).} The dataset does not record which 64 participants the paper analysed.
 The authors' earlier Zenodo deposit (doi 10.5281/zenodo.57911) lists them by lab ID, with their per-subject median
-parieto-occipital gamma and alpha values. we mapped these lab IDs to \texttt{ds003969} subjects using the recording
-dates in the BDF headers, cross-checked against age. 63 of the 64 are in \texttt{ds003969}; HYT26's recording was
-never converted. All results in this report use this matched sample (16 CTR, 15 HYT, 16 ISY, 16 VIP, 252
-recordings). The pipeline restricts to it with \texttt{run\_pipeline.py --paper-subjects}. The paper's per-subject
-values are also used directly, to check the replication subject by subject.
+parieto-occipital gamma and alpha values. We mapped these lab IDs to \texttt{ds003969} subjects using the recording
+dates in the BDF headers, cross-checked against age. 63 of the 64 are in \texttt{ds003969}; HYT26's recording is 
+missing from the publicly released data. All results in this report use this matched sample (16 CTR, 15 HYT, 16 ISY, 16 VIP, 252
+recordings). The paper's per-subject
+values are also used directly, to check the replication subject by subject. 
 
 %-------------------------------------------------------------------------------
+
 \section{Methodology}
 
-\subsection{Pipeline replication: process and decisions}
+\subsection{Pipeline replication}
 \label{sec:process}
 
 Table~\ref{tab:pipeline} sets the paper's description against what was implemented. Every step was
-either matched as closely as the text allows or replaced by an automated equivalent, because the original
-used manual judgement. Initially we attempted to reconstruct these manual judgements on bad channels and 
-bad ICA components, but it quickly became clear that we was not able to make the same manual judgements reliably.
+either matched as closely as the text allows.
+In cases where manual decisions were made for e.g. artefact or bad channel detection, 
+these were replaced by an automated equivalent. Initially we attempted to reconstruct
+these manual judgements on bad channels and bad ICA components, but it quickly 
+became clear that we were not able to make the same manual judgements reliably.
 
 Counts in the table are for the 252 matched-sample recordings.
 
@@ -148,21 +184,21 @@ Step & Paper & This replication \\
 \midrule
 Sample & 16 per group, matched on age and gender from a larger pool; TM not included &
   The paper's matched list, 63 of 64 available (See section~\ref{sec:data}) \\
-Reference & Right mastoid & Right mastoid (\texttt{EXG6}). \texttt{Fp1} replaced by \texttt{EXG8} \\
+Reference & Right mastoid & Right mastoid (\texttt{EXG6}) \\
 Resample, filter & 256\,Hz; 1\,Hz IIR high-pass, order 6, 0.3\,Hz transition & Same \\
 Segment rejection & EEGLAB \texttt{pop\_rejcont}: 1\,s epochs, 0.5\,s overlap, 0--10\,Hz $>$17\,dB, 35--128\,Hz $>$14\,dB, contiguous 8;
   thresholds ``in rare cases'' adjusted by 1--5\,dB after visual review &
   Line-by-line Python port with unit tests, including EEGLAB quirks such as \texttt{contiguous} acting as a merge distance.
-  Underspecified manual threshold adjustment \textbf{not reproduced} \\
+  Underspecified manual threshold adjustment not reproduced. \\
 Bad channels & Manual; 0--18 per subject, mean $\approx$5; interpolation not stated &
   Automated: union of MNE waveform LOF (thr.\ 1.5) and a custom spectral LOF on 1--45\,Hz log-PSD (thr.\ 2).
   Capped at 20 per recording, dropping the weakest suggestions first.
-  Mean 6.7 per recording, median 6, range 0--20. As in the original paper these are not interpolated; 
-  bad channels are excluded and cluster means use the remaining channels. For the electrode-level cluster tests
-  they are interpolated with spherical splines \\
+  Mean 6.7 per recording, median 6, range 0--20. By default these are excluded and cluster means use the 
+  remaining channels, but for the electrode-level cluster tests
+  they are interpolated with spherical splines as all channels are required    \\
 ICA & Infomax; 1--5 eye/temporal-muscle components chosen visually by one experimenter &
   Infomax with 20 components (count not given in the paper), fit on good EEG channels.
-  Components chosen automatically with \texttt{find\_bads\_muscle} (thr.\ 0.75) and \texttt{find\_bads\_eog} ($z{>}3$),
+  Components chosen automatically with \texttt{mne-python} functions \texttt{find\_bads\_muscle} (thr.\ 0.75) and \texttt{find\_bads\_eog} ($z{>}3$),
   capped at $\ge$1 muscle, $\le$4 EOG and $\le$5 in total: mean 3.3 removed (2.4 muscle, 0.9 EOG), range 1--5.
   A second pipeline with no ICA is reported alongside \\
 Spectra & 1\,s non-overlapping epochs, Hanning taper, FFT, $10\log_{10}$; 2--110\,Hz, 50\,Hz band excluded &
@@ -177,40 +213,39 @@ Statistics & FieldTrip cluster permutation on log power (2000 resamples) over el
 \label{tab:pipeline}
 \end{table}
 
-Two areas created significant differences in the results: the sample selection and the ICA procedure.
-Decisions regarding these were changed during the project to better match the original authors, 
-and the final reported results reflect these adjustments.
+Two areas created significant differences in the processed data: the sample selection and manual decisions 
+in the ICA and bad channel and segment procedures. Efforts were made during the project
+to match the authors' decisions as closely as possible. However, this was not entirely possible and
+discrepancies remained.
 
 \paragraph{Sample.} The project was initially run on all 94 non-TM participants, because the dataset does not say
 which participants the paper analysed. That sample is not the paper's: it has about 50\% more participants, is
 not age-matched, and its additional controls are younger than the paper's. Its group comparisons therefore do not
 test the paper's claims, and they gave a misleading picture of how well the paper replicates. Recovering the
-paper's subject list from its Zenodo deposit (Section~\ref{sec:data}) fixed this, and the spectral and criticality
-pipelines were rerun on that list. 
+paper's subject list from its Zenodo deposit (Section~\ref{sec:data}) fixed this, and all results here are from
+the sample restricted to that list. However, as noted above, this sample is still not exactly the same as the paper's, 
+as participant HYT26 (as they are labelled in the Zenodo deposit) has no data present in the public dataset.
 
 \paragraph{ICA.} The paper's component choices were made by eye and cannot be recovered, so several automated
 rules were tried while developing the pipeline:
 \begin{itemize}
   \item An uncapped rule (muscle threshold 0.5, EOG $z{>}3$) often removed more than 10 of 20 components per
         recording, far more than the paper's 1--5.
-  \item Raising the thresholds (muscle 1.0, EOG $z{>}5$) removed essentially nothing.
+  \item Raising the thresholds too far (muscle 1.0, EOG $z{>}5$) removed essentially nothing.
   \item An intermediate uncapped rule (muscle 0.75, EOG $z{>}3$) removed a median of about 2 but up to 17.
-  \item The rule adopted caps the count to mirror the paper: at least one muscle component, at most four EOG and at
-        most five in total. Variants with a higher EOG threshold ($z{>}4$) and with the EOG channels filtered
-        before scoring were also tried.
+  \item Caps were adopted to mirror the counts in the paper: at least one muscle component, at most four EOG and at
+        most five in total.
 \end{itemize}
-Because the gamma result proved sensitive to ICA, the final analysis runs the capped rule
-(\texttt{\_matchsample\_v1}) and a no-ICA pipeline (\texttt{\_matchsample\_noica\_v1}) side by side.
+As discrepancies remained even with the closest matching automated approach, the final analysis reports 
+results from both the capped rule and a no-ICA pipeline to provide a more complete picture.
 
-\paragraph{Where results are most likely to diverge from the paper.} In rough order of expected impact:
-\begin{enumerate}
-  \item \textbf{ICA component selection.} The paper removed 1--5 components chosen by eye. The automated selection
-        controls the size of the gamma result (Section~\ref{sec:power}).
-  \item \textbf{Bad channels.} The automated detector removes slightly more channels than the paper did
-        (6.7 vs $\approx$5 on average). 
-  \item \textbf{Unreproducible manual steps.} The paper's \texttt{pop\_rejcont} threshold tweaks and its channel and
-        component choices cannot be recovered from the text.
-\end{enumerate}
+\paragraph{Other manual decisions.} Beyond ICA component removal, the paper reports a number of other manual decisions which couldn't be replicated exactly:
+\begin{itemize}
+  \item Manual selection of bad channels from EEG recordings.
+  \item Manual selection which recordings to apply a harsher segment rejection procedure to.
+\end{itemize}
+Again, these decisions could not be exactly replicated, and may contribute to differences 
+between this replication and the original paper's results.
 
 \subsection{Spectral analysis}
 \label{sec:spectral}
@@ -223,7 +258,7 @@ it seems their approach was lacking.
         (O1, Oz, O2, PO7, PO3, POz, PO4, PO8), excluding the recording's bad channels, and expressed in dB.
         Bands follow the paper: gamma 60--110\,Hz and alpha 7--11\,Hz.
   \item \textbf{Cluster-based permutation tests.} Cluster based permutation tests were used to assess the significance of any spectral differences, 
-      following the paper's approach. For comparison, an FDR correction was then applied to these p-values, which the original 
+      following the paper's approach. An FDR correction was then applied to these p-values, which the original 
       paper did not apply.
   \item \textbf{Conditions.} MED is \texttt{med2}, IMW is \texttt{think2}, and the trait measure is each subject's
       mean of the two.
@@ -244,12 +279,15 @@ Two minor points came up along the way:
 \label{sec:critmethod}
 
 \paragraph{Measures.} The Hilbert amplitude envelope was computed in alpha (8--13\,Hz),
-beta (13--30\,Hz), and gamma (60--110\,Hz). DFA and fEI used \texttt{crosci} on
+beta (13--30\,Hz), and gamma (60--110\,Hz). These bands were chosen to better match Lewis-Healey et al.\ (2026), 
+rather than Braboszcz et al.\ (2017).
+
+DFA and fEI used \texttt{crosci} on
 non-overlapping 180\,s epochs, with DFA fitted over 5--30\,s and fEI computed in 5\,s windows with 80\%
 overlap. Values were averaged over epochs and good channels to give one value per subject, task and band.
 Manual implementations of DFA and fEI were first written and checked against \texttt{crosci}.
 
-These settings follow Lewis-Healey et al.\ (2026): \texttt{crosci}, the same five bands, 3-minute windows, DFA up to
+These settings follow Lewis-Healey et al.\ (2026): \texttt{crosci}, the same band definitions, 3-minute windows, DFA up to
 30\,s with 50\% overlap between DFA windows, fEI with 5\,s windows at 80\% overlap, and fEI only where DFA $>0.6$. That study differs in a few respects:
 \begin{itemize}
   \item Band-specific minimum DFA windows (alpha 3.98\,s, beta 2.24\,s).
@@ -264,30 +302,30 @@ A number of hypotheses were formed and tested, based on the results in Lewis-Hea
 \begin{itemize}
   \item \textbf{$H_1$}: There is no trait difference in criticality measures (DFA and fEI) between groups.
   \item \textbf{$H_2$}: Meditators show an increase in DFA criticality over time whilst meditating, i.e. 
-      from \texttt{med1think} to \texttt{med2}.
+      from \texttt{med1breath} to \texttt{med2}.
 \end{itemize}
 
 Given the results in Lewis-Healey et al.\ (2026), we also speculated that any differences would be most likely
 to manifest in alpha or beta. Gamma was included in the analysis for completeness, given the significant 
-gamma differences reported by Braboszcz et al.\ (2017).
+gamma power differences reported by Braboszcz et al.\ (2017).
 
 \paragraph{Data loss.} An epoch is dropped if \emph{any} \texttt{BAD} span overlaps it. Even a 2\,s
-\texttt{pop\_rejcont} flag therefore discards 180\,s of data. Consequences:
+\texttt{pop\_rejcont} flag therefore discards 180\,s of data. As a consequence:
 \begin{itemize}
   \item Only 149 of 252 recordings (59\%) have at least one usable epoch, from 55 of the 63 subjects.
   \item \texttt{think2} retains only 28 of 63 recordings.
   \item Usable recordings average 1.7 epochs, about 5 of 10 minutes.
   \item Only 26 meditators and 6 controls have both meditation blocks. 
 \end{itemize}
-This data loss means that the different groups are no longer balanced in terms of having equal numbers
-doing the meditation vs mind wandering tasks first. To stop this driving results an indicator variable is included in
-all regressions for whether a recording was in the second group of tasks.
+This data loss meant that the different groups were no longer balanced in terms of having equal numbers
+doing the meditation vs mind wandering tasks first. To stop this influencing results an indicator 
+variable was included in all regressions for whether a recording was in the second group of tasks.
+If ordering was important then this variable should pick up this effect, rather than it confounding the main results.
 
-This is the most important practical weakness of the criticality analysis. An epoch-length sweep on the same
+This was the most important practical weakness of the criticality analysis. An epoch-length sweep on the same
 recordings shows how much shorter epochs would recover: 95\% of recordings keep at
 least one epoch at 60\,s and 88\% at 90\,s, against 59\% at 180\,s. 
-
-\todo{Run the analysis with 60s epochs and compare}
+Analysis was repeated on 90\,s epochs to assess the impact of shorter epoch lengths on results.
 
 %-------------------------------------------------------------------------------
 \section{Results}
@@ -298,7 +336,7 @@ least one epoch at 60\,s and 88\% at 90\,s, against 59\% at 180\,s.
 \paragraph{Agreement with the paper's per-subject values.} Without ICA, this replication's parieto-occipital gamma
 matches the paper's own per-subject values closely: Pearson $r = 0.97$ in MED, $0.94$ in IMW and $0.96$ for the trait
 measure, with a residual scatter of 1.2--1.6\,dB around a constant offset (Fig.~\ref{fig:persubject}a). Alpha agrees
-at $r = 0.94$--$0.95$. With the capped automated ICA, agreement on gamma falls to $r = 0.68$ in MED and $0.75$ for
+at $r = 0.94$--$0.95$. With the automated ICA pipeline, agreement on gamma falls to $r = 0.68$ in MED and $0.75$ for
 the trait measure (Fig.~\ref{fig:persubject}b), while alpha is almost unaffected ($r = 0.90$--$0.93$). 
 
 The ICA step therefore accounts for most of the remaining disagreement on gamma, 
@@ -315,30 +353,21 @@ and a further analysis of this work would likely focus on these specific subject
 \label{fig:persubject}
 \end{figure}
 
-\paragraph{Group differences on the parieto-occipital cluster.} Table~\ref{tab:roi} and Fig.~\ref{fig:headline}
-give the group differences on the 8-electrode cluster mean, with Welch $t$-tests, for the paper's values and for
-both pipelines.
+\paragraph{Group differences on the parieto-occipital cluster.} Fig.~\ref{fig:headline} gives the
+group differences on the 8-electrode cluster mean, with Welch $t$-tests, for the paper's values and for both
+pipelines; Table~\ref{tab:roi} (Appendix~\ref{app:tables}) lists the values.
 \begin{itemize}
   \item \textbf{Gamma, no ICA.} Each meditator group exceeds controls by 3.5--4.8\,dB in MED and as a trait, all
         with $p \le .02$. These are within 1\,dB of the paper's own values for every contrast.
-  \item \textbf{Gamma, capped ICA.} The differences shrink by about 1\,dB on average. VIP is affected most
+  \item \textbf{Gamma, automated ICA.} The differences shrink by about 1\,dB on average. VIP is affected most
         (MED: $+2.6$\,dB, $p = .12$; trait: $+2.4$\,dB, $p = .09$), while HYT and ISY stay significant. Pooled
         meditators still exceed controls in MED ($+3.1$\,dB, $p = .011$) and as a trait ($+3.3$\,dB, $p = .002$).
   \item \textbf{Alpha.} VIP has more alpha than controls in MED in all three sources (3.5--4.3\,dB,
         $p \le .014$), and more than HYT and ISY combined (about 4\,dB, $p \le .007$). The effect is weaker in IMW
         ($p = .03$--$.07$ in this replication).
 \end{itemize}
-So this replication largely confirms the paper's findings in this areas, with some attenuation 
-of effects when using capped ICA.
-
-\begin{table}[htbp]
-\centering\small
-\input{results/tables/roi.tex}
-\caption{Group differences in mean power over the 8-electrode parieto-occipital cluster (dB), with Welch $t$-test
-$p$-values in brackets; $p < .05$ in bold. ``Paper's values'' puts the paper's per-subject values from Zenodo
-(Braboszcz et al., 2016) through the same tests. Trait is each subject's mean of MED and IMW.}
-\label{tab:roi}
-\end{table}
+So this replication largely confirms the paper's findings in these areas, with some attenuation 
+of estimates when using the automated ICA pipeline.
 
 \begin{figure}[htbp]
 \centering
@@ -357,7 +386,7 @@ in alpha.
         ($p = .017$, $.024$, $.042$ for HYT, ISY, VIP). As a trait, HYT and ISY do ($p = .029$, $.032$) and VIP
         narrowly misses ($p = .055$). The clusters are centred on parieto-occipital electrodes; for HYT and the pooled
         meditators in MED they extend over most of the scalp (43 electrodes).
-  \item \textbf{Gamma, capped ICA.} Only ISY keeps a significant MED cluster ($p = .042$, 9 parieto-occipital
+  \item \textbf{Gamma, automated ICA.} Only ISY keeps a significant MED cluster ($p = .042$, 9 parieto-occipital
         electrodes). HYT and ISY remain significant as a trait and in IMW, and VIP has no cluster below $p = .13$
         in any condition.
   \item \textbf{Alpha.} In MED, VIP exceeds controls, HYT and ISY in both pipelines ($p = .013$--$.040$), with
@@ -381,28 +410,26 @@ that cluster in brackets; $p < .05$ in bold; -- means no electrode passed the cl
 \paragraph{Correcting for the number of tests.} The paper's cluster tests correct across electrodes within each
 test, but not across the many tests run. To see whether this matters, we applied a Benjamini--Hochberg false
 discovery rate (FDR) correction (Benjamini and Hochberg, 1995) at 5\% to each test's smallest cluster $p$-value, within each pipeline. 
-Two families were used: the 23 tests that correspond to claims in the paper (gamma, each
+The family of tests is the 23 tests that correspond to claims in the paper: gamma, each
 tradition against controls in MED, IMW and trait; alpha, VIP against each other group in MED and IMW; MED against
-IMW within each group in both bands), and all 38 tests run here.
+IMW within each group in both bands.
 \begin{itemize}
   \item In each pipeline, 10 of the paper's 23 tests reach $p < .05$, against about 1 expected if there were no
         effects at all.
-  \item None survive the FDR correction, in either pipeline or family. The smallest adjusted $p$-value is $q = .097$
-        over the paper's tests in both pipelines, and $.106$ (no ICA) and $.114$ (capped ICA) over all tests.
+  \item None survive the FDR correction, in either pipeline. The smallest adjusted $p$-value is $q = .097$
+        over the paper's tests in both pipelines, and $.106$ (no ICA) and $.114$ (capped ICA) when all 38 tests run here
+        are included.
   \item The reason is that every significant cluster $p$-value lies between $.013$ and $.042$. Benjamini--Hochberg
         needs the $k$-th smallest of $m$ $p$-values to be at most $0.05\,k/m$; with 10 hits out of 23, the 10th
         would need to be below $.022$.
 \end{itemize}
-So the paper's electrode-level results reproduce test by test, and there are more of them than chance would
-produce. No single one of them, though, would survive a standard correction for the number of tests. 
-
 However, a 10\% FDR correction would keep all of them, so the results are clearly not entirely spurious. A reasonable
 conclusion is that the paper's reported p-values slightly overstate their statistical significance, but
 their main conclusions are not entirely undermined.
 
 \paragraph{Gamma and meditation experience.} The paper reports a skipped correlation of $r = 0.33$
 (95\% CI [0.06, 0.53]) between meditators' trait parieto-occipital gamma and log lifetime practice hours (its
-Fig.~4D). we reimplemented the skipped correlation (Pernet, Wilcox and Rousselet, 2013): bivariate outliers are
+Fig.~4D). We reimplemented the skipped correlation (Pernet, Wilcox and Rousselet, 2013): bivariate outliers are
 detected with the projection method and removed, and Pearson's $r$ is computed on the rest. Results are in
 Table~\ref{tab:experience} and Fig.~\ref{fig:experience}.
 \begin{itemize}
@@ -416,14 +443,14 @@ Table~\ref{tab:experience} and Fig.~\ref{fig:experience}.
         each bootstrap resample gives [$-0.14$, 0.51],
         which includes zero.
   \item \textbf{The estimate is fragile.} Dropping HYT26, the one meditator missing from \texttt{ds003969},
-        changes which points are flagged (ISY6 no longer is) and lowers $r$ to 0.24.
+        changes which points are flagged as outliers and lowers $r$ to 0.24.
   \item \textbf{This replication's own gamma shows no clear relationship:} $r = 0.16$ without ICA (no outliers
-        flagged) and $r = -0.05$ with capped ICA. Both CIs include zero under either bootstrap.
+        flagged) and $r = -0.05$ with capped ICA. Both CIs include zero under either bootstrap approach.
 \end{itemize}
 
 Overall this suggests that the reported correlation between trait parieto-occipital gamma and 
 meditation experience is extremely sensitive to outlier handling. Visually, considering figure \ref{fig:experience}a, 
-which is an exact replication of the paper's figure, it's immediately clear that the slope of the fitted
+which is an exact replication of the paper's figure 4D, it's clear that the slope of the fitted
 line is driven by the choice to remove two outliers.
 
 \begin{table}[htbp]
@@ -448,18 +475,19 @@ outliers removed by the skipped correlation; lines are fitted to the remaining p
 \subsection{Criticality}
 \label{sec:critresults}
 
-The main reported results here are for the capped-ICA pipeline. All analysis was also run with the no-ICA pipeline and 
+The main reported results here are for the pipeline that uses automated ICA component removal. 
+All analysis was also run with the no-ICA pipeline and 
 the results were qualitatively similar, with close point estimates and no major differences in significance.
 
 Mean DFA exponents were above 0.5 in every band (0.74 in alpha, 0.69 in beta and 0.80 in gamma), 
 indicating long-range temporal correlations in the amplitude envelopes. Mean fEI was below 1 in every band (0.93 in
 alpha, 0.85 in beta and 0.91 in gamma), which in the fEI framework indicates slightly inhibition-dominated dynamics.
-Both hypotheses
-were tested with OLS regressions of the subject-level DFA exponent (and, for $H_1$, fEI) with standard errors
+Hypotheses
+were tested using OLS regressions of the subject-level DFA exponent (and, for $H_1$, fEI) with standard errors
 clustered by subject. In each model, we also include an indicator variable for being in the second pair of tasks
- as a control for reasons outlined in section~\ref{sec:spectral}. 
-
-Tables~\ref{tab:h1} and~\ref{tab:h2} give the estimates, and Fig.~\ref{fig:crit} shows the key terms.
+ as a control for reasons outlined in section~\ref{sec:critmethod}. 
+Fig.~\ref{fig:crit} shows the key terms, and Tables~\ref{tab:h1} and~\ref{tab:h2}
+(Appendix~\ref{app:tables}) give the full estimates.
 
 \paragraph{$H_1$: no trait difference between groups.} The trait measure uses \texttt{med2} and \texttt{think2},
 as in the spectral analysis: 72 recordings from 49 subjects.
@@ -471,8 +499,8 @@ as in the spectral analysis: 72 recordings from 49 subjects.
   \item \textbf{fEI.} Beta and gamma show no group differences (joint $p = .62$ and $.85$). In alpha, VIP has
         higher fEI than controls ($+0.20$, $p = .003$), and the joint test rejects equal groups ($p = .003$), so
         $H_1$ does not hold for alpha fEI. HYT and ISY do not differ from controls. This was unexpected but
-        in ways aligns with the finding of higher alpha power in VIP. This result is not driven by a 
-        few subjects: alpha fEI lies above the control median for 11 of the 12 VIP subjects.
+        in ways aligns with the finding of higher alpha power in VIP. This result does not appear to be
+        driven by outliers: alpha fEI lies above the control median for 11 of the 12 VIP subjects.
 %   \item \textbf{It cannot be separated from alpha power.} VIP also has the highest alpha power
 %         (Section~\ref{sec:power}), and fEI tracks alpha power closely. With power measured in the same band and
 %         channels as fEI (8--13\,Hz, all good channels), the two correlate across subjects (Spearman $\rho = 0.59$,
@@ -485,16 +513,17 @@ as in the spectral analysis: 72 recordings from 49 subjects.
 \end{itemize}
 Interestingly, this fEI result mirrors the alpha power results: VIP shows higher alpha power than controls, 
 while HYT and ISY do not differ from controls. Measuring alpha power in the same band as fEI (8--13\,Hz) 
-we find a correlation of 0.59 ($p < .001$) between alpha power and alpha fEI for VIP subjects. This is an interesting
-relationship, and two explanations that cannot be distinguished by this data present themselves: it could be that higher 
-alpha power drives observed increases in fEI (fEI estimates depend on the prominence of the oscillation), 
+we find a correlation of 0.59 ($p < .001$) between alpha power and alpha fEI across subjects. This is an interesting
+relationship, and two explanations that cannot be distinguished by this data present themselves: it could be 
+that higher alpha power drives observed increases in fEI (fEI estimates may depend on the prominence 
+of the oscillation in the data), 
 or that both are driven by a common underlying factor such as excitation/inhibition balance.
 
 \paragraph{$H_2$: DFA increases during meditation.} This uses all four blocks for the meditators: 117 recordings
 from 40 subjects.
 \begin{itemize}
   \item \textbf{Beta DFA rises from \texttt{med1breath} to \texttt{med2}} ($+0.061$, $p = .009$). Alpha shows a
-        smaller rise ($+0.039$, $p = .055$), and gamma none.
+        smaller and less significant rise ($+0.039$, $p = .055$), and gamma none.
   \item \textbf{This rise cannot be separated from time on task.} \texttt{med2} always directly follows
         \texttt{med1breath}, so the first-to-second-block change also contains any generic effect of time spent in
         the task. The comparison with the thinking pair, (\texttt{med2} $-$ \texttt{med1breath}) $-$
@@ -508,9 +537,9 @@ on task effect.
 
 \paragraph{Session order.} DFA is lower in the second pair of blocks, after the break, in every band. The difference
 is significant in beta ($-0.052$, $p = .044$ in the $H_1$ model; $-0.043$, $p = .014$ in the $H_2$ model) and
-close to significance in alpha ($p = .09$ in both). Subjects completed other tasks between the first and second 
-pairs of blocks. These are not documented in Braboszcz et al. (2017), but notes referring to them exist in the 
-dataset. It's possible these tasks were responsible for the observed session order effect.
+close to significance in alpha ($p = .09$ in both). Subjects completed a questionnaire and a set of auditory and visual tasks between 
+the first and second 
+pairs of blocks. Braboszcz et al. (2017) mention these tasks but do not report their results. It's possible these tasks were responsible for the observed session order effect.
 
 \paragraph{Without ICA.} Appendix Fig.~\ref{fig:critnoica} repeats both analyses on the no-ICA pipeline. The
 results do not differ: no DFA estimate changes by more than 0.02 and no fEI estimate by more than 0.04. The only
@@ -523,24 +552,6 @@ the robustness of these results to that choice, we reran this analysis using 90 
 88\% of recordings having at least one usable epoch. The main results above 
 (No group differences in DFA, higher trait fEI for VIP practitioners, and a positive change in beta DFA over the meditation session)
  all survived this change. 
-
-\begin{table}[htbp]
-\centering\small
-\input{results/tables/criticality_h1.tex}
-\caption{$H_1$: OLS of the DFA exponent and of fEI on group and the second-pair indicator, using \texttt{med2} and
-\texttt{think2}, with standard errors clustered by subject. Group terms are differences from controls. ``All groups
-equal'' is a Wald test of the three group terms. $p < .05$ in bold.}
-\label{tab:h1}
-\end{table}
-
-\begin{table}[htbp]
-\centering\small
-\input{results/tables/criticality_h2.tex}
-\caption{$H_2$: OLS of the DFA exponent for meditators on task (MED or IMW), position in the pair (first or second
-block), their interaction and the second-pair indicator, with standard errors clustered by subject. The first
-three rows are model terms; ``med2 $-$ med1breath'' is the sum of the second and third. $p < .05$ in bold.}
-\label{tab:h2}
-\end{table}
 
 \begin{figure}[htbp]
 \centering
@@ -561,20 +572,23 @@ the early stages of EEG data processing through to the final statistical analyse
 In constructing the pipeline, the main difficulty in replicating the original design
 was steps that required unspecified manual intervention, such as artifact rejection and channel selection.
 Ultimately it was not possible to exactly replicate the processing and fortunately it was not necessary,
-as all analysis shown above was robust to different choices made during preprocessing.
+as all analysis shown above was largely robust to different choices made during preprocessing.
 Really this is a better outcome than an exact replication as we actually learn something
-about the robustness of the findings.
+about the robustness of the original findings.
 
 The authors' (Braboszcz et al., 2017) results on gamma power in meditators and alpha power specifically in 
 vipassana practitioners both replicate and do so robustly to different choices made in the 
-preprocessing pipeline. However, their result on the relationship between gamma power and years of meditative experience
-has been shown to be extremely fragile, depending entirely on the choice to drop two observations
-as outliers.
+preprocessing pipeline. However, their result on the relationship between gamma power and lifetime hours 
+of meditative practice has been shown to be extremely fragile, depending entirely on the 
+choice to drop two observations as outliers.
 
 A further analysis of criticality metrics (DFA and fEI) found no trait differences in DFA between
 controls or meditators of any type, consistent with the findings of Lewis-Healey et al. (2026).
 However, there is some evidence for higher trait alpha fEI specifically in vipassana practitioners. 
 This aligns with the finding of higher alpha power for this group, and the two findings are difficult to separate.
+There was some suggestive evidence for criticality increasing for meditators during meditation, 
+although the estimation procedure could not distinguish whether this was an effect of meditation
+or a more generic time on task effect.
 
 
 
@@ -582,25 +596,36 @@ This aligns with the finding of higher alpha power for this group, and the two f
 \clearpage
 
 \section*{References}
+\begingroup
 \small
-\begin{itemize}
+\begin{itemize}[label={}, leftmargin=1.6em, itemindent=-1.6em, itemsep=0.5em]
   \item Benjamini Y, Hochberg Y (1995). Controlling the false discovery rate: a practical and powerful approach to
-        multiple testing. \emph{Journal of the Royal Statistical Society: Series B} 57(1): 289--300.
-        \url{https://doi.org/10.1111/j.2517-6161.1995.tb02031.x}
-  \item Braboszcz C, Cahn BR, Levy J, Fernandez M, Delorme A (2017). Increased gamma brainwave amplitude compared to
-        control in three different meditation traditions. \emph{PLoS ONE} 12(1): e0170647.
-        \url{https://pmc.ncbi.nlm.nih.gov/articles/PMC5261734/}
-  \item Lewis-Healey E, Kringelbach M, Canales-Johnson A, Laukkonen R (2026). Near-critical brain dynamics track
-        effortlessness during meditation. \emph{bioRxiv}. \url{https://doi.org/10.64898/2026.08.07.743470}
-  \item Pernet CR, Wilcox R, Rousselet GA (2013). Robust correlation analyses: false positive and power validation
-        using a new open source Matlab toolbox. \emph{Frontiers in Psychology} 3: 606.
-        \url{https://doi.org/10.3389/fpsyg.2012.00606}
+        multiple testing. \emph{Journal of the Royal Statistical Society: Series B} \textbf{57}(1): 289--300.
+        \doi{10.1111/j.2517-6161.1995.tb02031.x}
   \item Braboszcz C, Cahn BR, Levi J, Fernandez M, Delorme A (2016). Data files related to the article ``Different
         meditation practices share the same neuronal correlates: increased gamma brainwave amplitude compared to
-        control in three different meditation traditions''. \emph{Zenodo} [dataset].
-        \url{https://doi.org/10.5281/zenodo.57911}
-  \item Dataset: OpenNeuro \texttt{ds003969} v1.0.0. \url{https://openneuro.org/datasets/ds003969/versions/1.0.0}
+        control in three different meditation traditions''. \emph{Zenodo} [dataset]. \doi{10.5281/zenodo.57911}
+  \item Braboszcz C, Cahn BR, Levy J, Fernandez M, Delorme A (2017). Increased gamma brainwave amplitude compared to
+        control in three different meditation traditions. \emph{PLoS ONE} \textbf{12}(1): e0170647.
+        \doi{10.1371/journal.pone.0170647}
+  \item Bruining H, Hardstone R, Juarez-Martinez EL, Sprengers J, Avramiea AE, Simpraga S, et al.\ (2020).
+        Measurement of excitation-inhibition ratio in autism spectrum disorder using critical brain dynamics.
+        \emph{Scientific Reports} \textbf{10}: 9195. \doi{10.1038/s41598-020-65500-4}
+  \item Delorme A, Braboszcz C (2021). Meditation vs thinking task. \emph{OpenNeuro} [dataset], \texttt{ds003969}
+        v1.0.0. \doi{10.18112/openneuro.ds003969.v1.0.0}
+  \item Hardstone R, Poil SS, Schiavone G, Jansen R, Nikulin VV, Mansvelder HD, Linkenkaer-Hansen K (2012).
+        Detrended fluctuation analysis: a scale-free view on neuronal oscillations. \emph{Frontiers in Physiology}
+        \textbf{3}: 450. \doi{10.3389/fphys.2012.00450}
+  \item Lewis-Healey E, Kringelbach M, Canales-Johnson A, Laukkonen R (2026). Near-critical brain dynamics track
+        effortlessness during meditation. \emph{bioRxiv} [preprint]. \doi{10.64898/2026.08.07.743470}
+  \item Linkenkaer-Hansen K, Nikouline VV, Palva JM, Ilmoniemi RJ (2001). Long-range temporal correlations and
+        scaling behavior in human brain oscillations. \emph{Journal of Neuroscience} \textbf{21}(4): 1370--1377.
+        \doi{10.1523/JNEUROSCI.21-04-01370.2001}
+  \item Pernet CR, Wilcox R, Rousselet GA (2013). Robust correlation analyses: false positive and power validation
+        using a new open source Matlab toolbox. \emph{Frontiers in Psychology} \textbf{3}: 606.
+        \doi{10.3389/fpsyg.2012.00606}
 \end{itemize}
+\endgroup
 
 \clearpage
 
@@ -624,8 +649,8 @@ The electrode-level tests follow the paper's description of its FieldTrip analys
 \end{itemize}
 Figures~\ref{fig:clustergamma} and~\ref{fig:clusteralpha} show the group differences, with the electrodes in
 clusters with $p < .05$ marked.
-Code: \texttt{code/cluster\_stats.py} and \texttt{scripts/cluster\_tests.py}; results in
-\texttt{results/matched/cluster\_tests.csv} and, with FDR-adjusted values, \texttt{cluster\_tests\_fdr.csv}.
+The code is in \nolinkurl{code/cluster_stats.py} and \nolinkurl{scripts/cluster_tests.py}, and the results are in
+\nolinkurl{results/matched/cluster_tests.csv} and, with FDR-adjusted values, \nolinkurl{cluster_tests_fdr.csv}.
 
 \begin{figure}[p]
 \centering
@@ -643,6 +668,7 @@ dots mark electrodes in clusters with $p < .05$. Rows 1--2: no ICA; rows 3--4: c
 \label{fig:clusteralpha}
 \end{figure}
 
+\clearpage
 \section{Criticality without ICA}
 
 \begin{figure}[H]
@@ -657,9 +683,39 @@ dots mark electrodes in clusters with $p < .05$. Rows 1--2: no ICA; rows 3--4: c
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.6\linewidth]{figures/image-2.png}
+\includegraphics[width=0.6\linewidth]{figures/paper_fig3.png}
 \caption{Braboszcz et al.\ (2017), Fig.~3: Oz spectra by group (CC BY 4.0).}
 \label{fig:paper}
 \end{figure}
+
+\section{Full results tables}
+\label{app:tables}
+
+\begin{table}[H]
+\centering\small
+\input{results/tables/roi.tex}
+\caption{Group differences in mean power over the 8-electrode parieto-occipital cluster (dB), with Welch $t$-test
+$p$-values in brackets; $p < .05$ in bold. ``Paper's values'' puts the paper's per-subject values from Zenodo
+(Braboszcz et al., 2016) through the same tests. Trait is each subject's mean of MED and IMW.}
+\label{tab:roi}
+\end{table}
+
+\begin{table}[H]
+\centering\small
+\input{results/tables/criticality_h1.tex}
+\caption{$H_1$: OLS of the DFA exponent and of fEI on group and the second-pair indicator, using \texttt{med2} and
+\texttt{think2}, with standard errors clustered by subject. Group terms are differences from controls. ``All groups
+equal'' is a Wald test of the three group terms. $p < .05$ in bold.}
+\label{tab:h1}
+\end{table}
+
+\begin{table}[H]
+\centering\small
+\input{results/tables/criticality_h2.tex}
+\caption{$H_2$: OLS of the DFA exponent for meditators on task (MED or IMW), position in the pair (first or second
+block), their interaction and the second-pair indicator, with standard errors clustered by subject. The first
+three rows are model terms; ``med2 $-$ med1breath'' is the sum of the second and third. $p < .05$ in bold.}
+\label{tab:h2}
+\end{table}
 
 \end{document}

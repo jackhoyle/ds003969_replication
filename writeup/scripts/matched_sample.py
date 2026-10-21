@@ -7,6 +7,8 @@ mw_medit_combined_parieto_occip_Gamma_correl_exp.csv from doi 10.5281/zenodo.579
 
 Per subject: mean power over an 8-electrode parieto-occipital cluster, in dB, for gamma (60-110 Hz) and alpha
 (7-11 Hz), in MED (med2), MW (think2), BRE (med1breath) and trait (mean of MED and MW, as in the paper).
+Reads the runs' interpolated PSDs (psd_epoch_mean_interp) but leaves out each recording's bad channels, so cluster
+means use only the good channels, as in the paper.
 """
 import sys
 import warnings
@@ -17,7 +19,8 @@ import pandas as pd
 from scipy import stats
 from statsmodels.stats.oneway import anova_oneway
 
-from compute_psd_epochs import bids_root, load_all, paper_subjects, paper_subjects_csv, psd_dir_for
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'code'))
+from compute_psd_epochs import bids_root, paper_subjects_csv, psd_dir_for, subject_of
 
 warnings.simplefilter('ignore')
 zen, out = Path(sys.argv[1]), Path(sys.argv[2])
@@ -27,22 +30,25 @@ PO = ['O1', 'Oz', 'O2', 'PO7', 'PO3', 'POz', 'PO4', 'PO8']
 BANDS = {'gamma': (60, 110), 'alpha': (7, 11)}
 CONDS = {'MED': 'med2', 'MW': 'think2', 'BRE': 'med1breath'}
 GROUP = {'ctr': 'CTR', 'htr': 'HYT', 'sny': 'ISY', 'vip': 'VIP'}
-RUNS = {'matched, capped ICA': '_matchsample_v0', 'matched, no ICA': '_matchsample_noica_v0'}
+RUNS = {'matched, capped ICA': '_matchsample_v1', 'matched, no ICA': '_matchsample_noica_v1'}
 
 participants = pd.read_csv(bids_root / 'participants.tsv', sep='\t')
 group_of = dict(zip(participants.participant_id.str.removeprefix('sub-'), participants.group.map(GROUP)))
 
 
-def subject_values(run_suffix, key='psd_mean', only=None):
-    """Long table: subject, group, band, cond, db (mean linear power over cluster and band, in dB)."""
-    by_task, freqs, ch_names, subjects = load_all(psd_dir_for(run_suffix), key=key, only_subjects=only)
-    ci = [list(ch_names).index(c) for c in PO]
+def subject_values(run_suffix, key='psd_mean'):
+    """Long table: subject, group, band, cond, db (mean linear power over the cluster's good channels and the band,
+    in dB)."""
     rows = []
     for cond, task in CONDS.items():
-        for band, (lo, hi) in BANDS.items():
-            m = (freqs >= lo) & (freqs <= hi)
-            x = np.nanmean(by_task[task][:, ci][:, :, m].mean(-1), axis=1)
-            rows += [dict(subject=s, band=band, cond=cond, db=10 * np.log10(v)) for s, v in zip(subjects[task], x)]
+        for f in sorted(psd_dir_for(run_suffix, interpolated=True).glob(f'sub-*_task-{task}_*psd.npz')):
+            d = np.load(f)
+            ch_names, freqs = list(d['ch_names']), d['freqs']
+            good = [ch_names.index(c) for c in PO if c not in set(d['bad_channels'])]
+            for band, (lo, hi) in BANDS.items():
+                m = (freqs >= lo) & (freqs <= hi)
+                v = d[key][good][:, m].mean() if good else np.nan
+                rows.append(dict(subject=subject_of(f), band=band, cond=cond, db=10 * np.log10(v)))
     df = pd.DataFrame(rows)
     trait = df[df.cond.isin(['MED', 'MW'])].groupby(['subject', 'band']).db.mean().reset_index().assign(cond='trait')
     df = pd.concat([df, trait])
@@ -96,13 +102,8 @@ def group_tests(df, source):
 ours = {name: subject_values(sfx) for name, sfx in RUNS.items()}
 paper = paper_values()
 
-# 0. sanity: the matched runs reproduce the full-sample runs' PSDs for the same subjects
-print('## 0. Matched runs vs full-sample runs, same subjects (max |diff| in dB)')
-only = paper_subjects()
-for new, old in [('_matchsample_noica_v0', '_noica'), ('_matchsample_v0', '_v2'), ('_matchsample_v0', '')]:
-    a = subject_values(new).set_index(['subject', 'band', 'cond']).db
-    b = subject_values(old, only=only).set_index(['subject', 'band', 'cond']).db
-    print(f'  {new} vs {old or "_base"}: {(a - b).abs().max():.4f} dB over {len(a)} values')
+print('Recordings with no good parieto-occipital channel:',
+      {n: int(df[df.cond != 'trait'].db.isna().sum() // len(BANDS)) for n, df in ours.items()})
 
 # 1. group tests, ours and the paper's
 tests = pd.concat([group_tests(df, name) for name, df in ours.items()] + [group_tests(paper, 'paper (Zenodo)')])

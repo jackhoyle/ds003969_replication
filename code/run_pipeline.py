@@ -47,6 +47,9 @@ def parse_args():
     parser.add_argument('--paper-subjects', action='store_true',
                         help="restrict every step to the paper's age/gender-matched subjects (paper_subjects.csv); "
                              'plots are written to plots_paper/ instead of plots/')
+    parser.add_argument('--criticality-epoch-len', type=float, default=180.0,
+                        help='step 3: epoch length in s for DFA/fEI (default 180); other lengths write to '
+                             'criticality_{len}s/ so the default results are kept')
     parser.add_argument('--skip-criticality', action='store_true',
                         help='skip DFA/fEI (step 3), which is the slowest step after ICA')
     parser.add_argument('--plots-only', action='store_true',
@@ -78,8 +81,10 @@ def main():
 
     if not (args.skip_criticality or args.plots_only):
         import compute_criticality  # needs crosci
-        logging.info(f'Step 3/4: computing DFA/fEI -> {compute_criticality.criticality_dir_for(args.suffix)}')
-        compute_criticality.main(run_suffix=args.suffix, n_jobs=args.n_jobs, subjects=subjects)
+        out = compute_criticality.criticality_dir_for(args.suffix, args.criticality_epoch_len)
+        logging.info(f'Step 3/4: computing DFA/fEI -> {out}')
+        compute_criticality.main(run_suffix=args.suffix, n_jobs=args.n_jobs, subjects=subjects,
+                                 epoch_len=args.criticality_epoch_len)
 
     plots_dir = (bids_root / f'outputs{args.suffix}' /
                  (('plots_paper' if args.paper_subjects else 'plots') + ('_interp' if args.interpolate_bads else '')))

@@ -3,3 +3,12 @@ __pycache__/
 .vscode/
 !writeup/replication_writeup.pdf
 !writeup/figures/*.pdf
+
+# LaTeX build files
+writeup/*.aux
+writeup/*.fdb_latexmk
+writeup/*.fls
+writeup/*.log
+writeup/*.out
+writeup/*.synctex.gz
+.pytest_cache/

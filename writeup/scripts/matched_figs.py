@@ -51,8 +51,8 @@ fig.savefig('figures/matched_headline.png', dpi=110)
 # per-subject gamma in MED vs the paper's values
 fig, axs = plt.subplots(1, 2, figsize=(7.0, 3.2), constrained_layout=True, sharex=True, sharey=True)
 gcol = {'CTR': '#2a78d6', 'HYT': '#eb6834', 'ISY': '#1baf7a', 'VIP': '#eda100'}
-for ax, (sfx, title) in zip(axs, [('_matchsample_noica_v0', '(a) No ICA'),
-                                  ('_matchsample_v0', '(b) ICA, capped; EOG $z{>}3$')]):
+for ax, (sfx, title) in zip(axs, [('_matchsample_noica_v1', '(a) No ICA'),
+                                  ('_matchsample_v1', '(b) ICA, capped; EOG $z{>}3$')]):
     d = pd.read_csv(f'{R}/per_subject_vs_paper_{sfx}.csv')
     d = d[(d.band == 'gamma') & (d.cond == 'MED')]
     offset = (d.db_paper - d.db).mean()

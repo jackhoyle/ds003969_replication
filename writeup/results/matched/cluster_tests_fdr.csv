@@ -1,0 +1,77 @@
+run,band,cond,comparison,p,paper_test,q_all,q_paper
+"matched, no ICA",gamma,MED,HYT - CTR,0.0165,True,0.10640000000000001,0.0966
+"matched, no ICA",gamma,IMW,HYT - CTR,0.0415,True,0.10640000000000001,0.0966
+"matched, no ICA",gamma,trait,HYT - CTR,0.0285,True,0.10640000000000001,0.0966
+"matched, no ICA",gamma,MED,ISY - CTR,0.024,True,0.10640000000000001,0.0966
+"matched, no ICA",gamma,IMW,ISY - CTR,0.059,True,0.12455555555555556,0.11308333333333333
+"matched, no ICA",gamma,trait,ISY - CTR,0.0315,True,0.10640000000000001,0.0966
+"matched, no ICA",gamma,MED,VIP - CTR,0.042,True,0.10640000000000001,0.0966
+"matched, no ICA",gamma,IMW,VIP - CTR,0.1135,True,0.20538095238095236,0.17403333333333335
+"matched, no ICA",gamma,trait,VIP - CTR,0.055,True,0.12405882352941176,0.11308333333333333
+"matched, no ICA",gamma,MED,all meditators - CTR,0.021,False,0.10640000000000001,
+"matched, no ICA",gamma,IMW,all meditators - CTR,0.0395,False,0.10640000000000001,
+"matched, no ICA",gamma,trait,all meditators - CTR,0.0325,False,0.10640000000000001,
+"matched, no ICA",gamma,MED - IMW,"MED - IMW, CTR",0.124,True,0.21418181818181817,0.17825
+"matched, no ICA",gamma,MED - IMW,"MED - IMW, HYT",1.0,True,1.0,1.0
+"matched, no ICA",gamma,MED - IMW,"MED - IMW, ISY",1.0,True,1.0,1.0
+"matched, no ICA",gamma,MED - IMW,"MED - IMW, VIP",1.0,True,1.0,1.0
+"matched, no ICA",alpha,MED,HYT - CTR,1.0,False,1.0,
+"matched, no ICA",alpha,IMW,HYT - CTR,1.0,False,1.0,
+"matched, no ICA",alpha,trait,HYT - CTR,1.0,False,1.0,
+"matched, no ICA",alpha,MED,ISY - CTR,1.0,False,1.0,
+"matched, no ICA",alpha,IMW,ISY - CTR,1.0,False,1.0,
+"matched, no ICA",alpha,trait,ISY - CTR,1.0,False,1.0,
+"matched, no ICA",alpha,MED,VIP - CTR,0.031,True,0.10640000000000001,0.0966
+"matched, no ICA",alpha,IMW,VIP - CTR,0.065,True,0.13,0.11500000000000002
+"matched, no ICA",alpha,trait,VIP - CTR,0.0335,False,0.10640000000000001,
+"matched, no ICA",alpha,MED,all meditators - CTR,1.0,False,1.0,
+"matched, no ICA",alpha,IMW,all meditators - CTR,1.0,False,1.0,
+"matched, no ICA",alpha,trait,all meditators - CTR,1.0,False,1.0,
+"matched, no ICA",alpha,MED,VIP - HYT,0.022,True,0.10640000000000001,0.0966
+"matched, no ICA",alpha,IMW,VIP - HYT,0.0285,True,0.10640000000000001,0.0966
+"matched, no ICA",alpha,trait,VIP - HYT,0.025,False,0.10640000000000001,
+"matched, no ICA",alpha,MED,VIP - ISY,0.0385,True,0.10640000000000001,0.0966
+"matched, no ICA",alpha,IMW,VIP - ISY,0.0765,True,0.14535,0.12567857142857142
+"matched, no ICA",alpha,trait,VIP - ISY,0.0555,False,0.12405882352941176,
+"matched, no ICA",alpha,MED - IMW,"MED - IMW, CTR",1.0,True,1.0,1.0
+"matched, no ICA",alpha,MED - IMW,"MED - IMW, HYT",0.2955,True,0.467875,0.37758333333333327
+"matched, no ICA",alpha,MED - IMW,"MED - IMW, ISY",0.2185,True,0.361,0.29561764705882354
+"matched, no ICA",alpha,MED - IMW,"MED - IMW, VIP",0.322,True,0.48944,0.3897894736842105
+"matched, capped ICA",gamma,MED,HYT - CTR,0.0655,True,0.15556250000000002,0.13695454545454547
+"matched, capped ICA",gamma,IMW,HYT - CTR,0.0385,True,0.11400000000000002,0.0966
+"matched, capped ICA",gamma,trait,HYT - CTR,0.0335,True,0.11400000000000002,0.0966
+"matched, capped ICA",gamma,MED,ISY - CTR,0.042,True,0.11400000000000002,0.0966
+"matched, capped ICA",gamma,IMW,ISY - CTR,0.035,True,0.11400000000000002,0.0966
+"matched, capped ICA",gamma,trait,ISY - CTR,0.0315,True,0.11400000000000002,0.0966
+"matched, capped ICA",gamma,MED,VIP - CTR,0.1795,True,0.34105,0.29133333333333333
+"matched, capped ICA",gamma,IMW,VIP - CTR,0.19,True,0.3438095238095238,0.29133333333333333
+"matched, capped ICA",gamma,trait,VIP - CTR,0.136,True,0.28711111111111115,0.2591923076923077
+"matched, capped ICA",gamma,MED,all meditators - CTR,0.053,False,0.13426666666666667,
+"matched, capped ICA",gamma,IMW,all meditators - CTR,0.034,False,0.11400000000000002,
+"matched, capped ICA",gamma,trait,all meditators - CTR,0.0405,False,0.11400000000000002,
+"matched, capped ICA",gamma,MED - IMW,"MED - IMW, CTR",1.0,True,1.0,1.0
+"matched, capped ICA",gamma,MED - IMW,"MED - IMW, HYT",1.0,True,1.0,1.0
+"matched, capped ICA",gamma,MED - IMW,"MED - IMW, ISY",1.0,True,1.0,1.0
+"matched, capped ICA",gamma,MED - IMW,"MED - IMW, VIP",1.0,True,1.0,1.0
+"matched, capped ICA",alpha,MED,HYT - CTR,1.0,False,1.0,
+"matched, capped ICA",alpha,IMW,HYT - CTR,1.0,False,1.0,
+"matched, capped ICA",alpha,trait,HYT - CTR,1.0,False,1.0,
+"matched, capped ICA",alpha,MED,ISY - CTR,1.0,False,1.0,
+"matched, capped ICA",alpha,IMW,ISY - CTR,1.0,False,1.0,
+"matched, capped ICA",alpha,trait,ISY - CTR,1.0,False,1.0,
+"matched, capped ICA",alpha,MED,VIP - CTR,0.0135,True,0.11400000000000002,0.0966
+"matched, capped ICA",alpha,IMW,VIP - CTR,0.023,True,0.11400000000000002,0.0966
+"matched, capped ICA",alpha,trait,VIP - CTR,0.017,False,0.11400000000000002,
+"matched, capped ICA",alpha,MED,all meditators - CTR,1.0,False,1.0,
+"matched, capped ICA",alpha,IMW,all meditators - CTR,1.0,False,1.0,
+"matched, capped ICA",alpha,trait,all meditators - CTR,1.0,False,1.0,
+"matched, capped ICA",alpha,MED,VIP - HYT,0.033,True,0.11400000000000002,0.0966
+"matched, capped ICA",alpha,IMW,VIP - HYT,0.0325,True,0.11400000000000002,0.0966
+"matched, capped ICA",alpha,trait,VIP - HYT,0.0335,False,0.11400000000000002,
+"matched, capped ICA",alpha,MED,VIP - ISY,0.04,True,0.11400000000000002,0.0966
+"matched, capped ICA",alpha,IMW,VIP - ISY,1.0,True,1.0,1.0
+"matched, capped ICA",alpha,trait,VIP - ISY,0.089,False,0.19894117647058823,
+"matched, capped ICA",alpha,MED - IMW,"MED - IMW, CTR",1.0,True,1.0,1.0
+"matched, capped ICA",alpha,MED - IMW,"MED - IMW, HYT",0.3115,True,0.5380454545454545,0.44778125
+"matched, capped ICA",alpha,MED - IMW,"MED - IMW, ISY",0.1465,True,0.293,0.2591923076923077
+"matched, capped ICA",alpha,MED - IMW,"MED - IMW, VIP",0.4535,True,0.7492608695652174,0.6135588235294118
